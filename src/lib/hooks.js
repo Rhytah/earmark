@@ -2,14 +2,23 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabase'
 import { getCurrentMonth } from './constants'
 
+function getMonthRange(month) {
+  const [year, monthNum] = month.split('-').map(Number)
+  const mm = String(monthNum).padStart(2, '0')
+  const lastDay = new Date(year, monthNum, 0).getDate()
+  return {
+    start: `${year}-${mm}-01`,
+    end: `${year}-${mm}-${String(lastDay).padStart(2, '0')}`,
+  }
+}
+
 export function useExpenses(month = getCurrentMonth()) {
   const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(true)
 
   const fetch = useCallback(async () => {
     setLoading(true)
-    const start = `${month}-01`
-    const end = `${month}-31`
+    const { start, end } = getMonthRange(month)
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
@@ -83,6 +92,35 @@ export function useGymSessions(month = getCurrentMonth()) {
   }
 
   return { sessions, loading, logSession, removeSession, refetch: fetch }
+}
+
+export function useExpensesHistory(monthsBack = 6, endMonth = getCurrentMonth()) {
+  const [expenses, setExpenses] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    const [endYear, endMonthNum] = endMonth.split('-').map(Number)
+    const startDate = new Date(endYear, endMonthNum - monthsBack, 1)
+    const start = startDate.toISOString().slice(0, 10)
+    const { end } = getMonthRange(endMonth)
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .gte('date', start)
+      .lte('date', end)
+      .order('date', { ascending: true })
+    if (error) console.error('[supabase expenses history]', error.message, error)
+    setExpenses(data || [])
+    setLoading(false)
+  }, [monthsBack, endMonth])
+
+  useEffect(() => {
+    void Promise.resolve().then(() => fetch())
+  }, [fetch])
+
+  return { expenses, loading, refetch: fetch }
 }
 
 export function useSavingsSnapshot() {
