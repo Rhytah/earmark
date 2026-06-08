@@ -71,7 +71,7 @@ export function Badge({ children, color = 'var(--accent)', bg }) {
   )
 }
 
-export function Btn({ children, onClick, variant = 'primary', size = 'md', style, disabled, className }) {
+export function Btn({ children, onClick, variant = 'primary', size = 'md', style, disabled, className, type = 'button' }) {
   const cn = className ? `ui-btn ${className}` : 'ui-btn'
   const base = {
     fontWeight: 600,
@@ -100,7 +100,7 @@ export function Btn({ children, onClick, variant = 'primary', size = 'md', style
     },
   }
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className={cn} style={{ ...base, ...variants[variant] }}>
+    <button type={type} onClick={onClick} disabled={disabled} className={cn} style={{ ...base, ...variants[variant] }}>
       {children}
     </button>
   )

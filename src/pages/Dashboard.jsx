@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useAppSettings } from '../context/useAppSettings'
-import { useExpenses, useInvestments } from '../lib/hooks'
-import { fmt, getCurrentMonth } from '../lib/constants'
+import { useExpenses, useInvestments, useTrackerLogsBatch } from '../lib/hooks'
+import { budgetLineAmount, fmt, getCurrentMonth } from '../lib/constants'
+import { computeTrackerSummary, enabledTrackers, getTrackerIcon } from '../lib/trackers'
 import { Card, MetricCard, ProgressBar, SectionTitle, Badge, MonthPicker, Spinner } from '../components/UI'
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -32,8 +34,23 @@ export default function Dashboard() {
   const { settings } = useAppSettings()
   const { salary, budget } = settings
   const [month, setMonth] = useState(getCurrentMonth())
+  const trackers = useMemo(() => enabledTrackers(settings.trackers), [settings.trackers])
+  const trackerIds = useMemo(() => trackers.map((t) => t.id), [trackers])
   const { expenses, loading } = useExpenses(month)
   const { transactions } = useInvestments(month)
+  const { logsByTracker, loading: trackersLoading } = useTrackerLogsBatch(month, trackerIds)
+
+  const trackerSummaries = useMemo(
+    () =>
+      trackers.map((tracker) => ({
+        tracker,
+        stats: computeTrackerSummary(tracker, logsByTracker[tracker.id] || [], {
+          month,
+          budgetAmount: budgetLineAmount(budget, tracker.budget_category),
+        }),
+      })),
+    [trackers, logsByTracker, month, budget],
+  )
 
   const { totalSpend, remaining, byCategory, chartData } = useMemo(() => {
     const totalSpend = expenses.reduce((s, e) => s + (e.amount || 0), 0)
@@ -95,6 +112,73 @@ export default function Dashboard() {
           color={incomeUsed > salary ? 'var(--red)' : 'var(--text)'}
         />
       </div>
+
+      {trackers.length > 0 && (
+        <Card style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: 8 }}>
+            <SectionTitle style={{ marginBottom: 0 }}>Personal trackers</SectionTitle>
+            <Link to="/trackers" style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, textDecoration: 'none' }}>
+              View all
+            </Link>
+          </div>
+          {trackersLoading ? (
+            <Spinner />
+          ) : (
+            <div className="dashboard-tracker-grid">
+              {trackerSummaries.map(({ tracker, stats }) => {
+                const Icon = getTrackerIcon(tracker.icon)
+                const unitPlural = stats.unitLabel.endsWith('s') ? stats.unitLabel : `${stats.unitLabel}s`
+                return (
+                  <Link key={tracker.id} to={`/trackers/${tracker.id}`} className="dashboard-tracker-card">
+                    <div className="dashboard-tracker-head">
+                      <div className="dashboard-tracker-icon" aria-hidden>
+                        <Icon size={18} />
+                      </div>
+                      <div>
+                        <div className="dashboard-tracker-title">{tracker.label}</div>
+                        <div className="dashboard-tracker-meta">
+                          {stats.isCurrentMonth && stats.weekCount != null
+                            ? `${stats.weekCount}/${stats.targetPerWeek} this week`
+                            : `${stats.count} ${unitPlural} this month`}
+                        </div>
+                      </div>
+                    </div>
+                    {stats.isCurrentMonth && stats.weekCount != null && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
+                          <span>This week</span>
+                          <span>{stats.weekCount} / {stats.targetPerWeek}</span>
+                        </div>
+                        <ProgressBar value={stats.weekCount} max={stats.targetPerWeek} color="var(--teal)" height={6} />
+                      </div>
+                    )}
+                    <div style={{ marginBottom: stats.unspent > 0 ? 8 : 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
+                        <span>This month</span>
+                        <span>
+                          {stats.count}
+                          {stats.maxUnits != null ? ` / ${stats.maxUnits}` : ` / ${stats.monthTarget}`}
+                        </span>
+                      </div>
+                      <ProgressBar
+                        value={stats.count}
+                        max={stats.maxUnits ?? stats.monthTarget}
+                        color="var(--accent)"
+                        height={6}
+                      />
+                    </div>
+                    {stats.unspent > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>
+                        UGX {fmt(stats.unspent)} unspent
+                      </div>
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Salary progress bar */}
       <Card style={{ marginBottom: '1.5rem' }}>

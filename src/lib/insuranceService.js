@@ -1,9 +1,15 @@
 import { supabase } from './supabase'
 
 export async function uploadInsuranceDocs(files) {
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) throw new Error('Sign in to upload insurance documents.')
+
   const uploaded = []
   for (const file of files) {
-    const path = `${Date.now()}_${file.name}`
+    const path = `${user.id}/${Date.now()}_${file.name}`
     const { error } = await supabase.storage.from('insurance-docs').upload(path, file)
     if (error) throw error
     uploaded.push({ path, name: file.name })

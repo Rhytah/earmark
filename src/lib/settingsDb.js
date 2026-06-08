@@ -1,4 +1,5 @@
 import { DEFAULT_APP_SETTINGS } from './constants'
+import { gymLegacyFromTrackers, normalizeTrackers } from './trackers'
 
 function normalizeInvestmentGoals(goals) {
   const raw = Array.isArray(goals) ? [...goals].slice(0, 3) : []
@@ -26,28 +27,44 @@ export function rowToSettings(row) {
       Array.isArray(row.investment_goals) ? row.investment_goals : DEFAULT_APP_SETTINGS.investment_goals,
     ),
     emergency_fund_target: Number(row.emergency_fund_target) || DEFAULT_APP_SETTINGS.emergency_fund_target,
+    trackers: normalizeTrackers(row.trackers, row),
     gym_session_cost: Number(row.gym_session_cost) || DEFAULT_APP_SETTINGS.gym_session_cost,
     gym_sessions_per_week: Number(row.gym_sessions_per_week) || 1,
     gym_category: row.gym_category || DEFAULT_APP_SETTINGS.gym_category,
     emergency_category: row.emergency_category || DEFAULT_APP_SETTINGS.emergency_category,
     investments_category: row.investments_category || DEFAULT_APP_SETTINGS.investments_category,
+    sheet_sync_enabled: Boolean(row.sheet_sync_enabled),
+    sheet_sync_url: row.sheet_sync_url ?? '',
+    sheet_sync_interval_seconds: Math.max(15, Number(row.sheet_sync_interval_seconds) || 60),
+    sheet_sync_last_at: row.sheet_sync_last_at ?? null,
+    sheet_sync_last_error: row.sheet_sync_last_error ?? null,
+    sheet_sync_last_count: Number(row.sheet_sync_last_count) || 0,
   }
 }
 
-export function settingsToRow(s) {
+export function settingsToRow(s, userId) {
+  const trackers = normalizeTrackers(s.trackers, s)
+  const gymLegacy = gymLegacyFromTrackers(trackers)
   return {
-    id: 'default',
+    user_id: userId,
     app_title: s.app_title,
     salary: s.salary,
     budget: s.budget,
     payment_methods: s.payment_methods,
     investment_goals: s.investment_goals,
     emergency_fund_target: s.emergency_fund_target,
-    gym_session_cost: s.gym_session_cost,
-    gym_sessions_per_week: s.gym_sessions_per_week,
-    gym_category: s.gym_category,
+    trackers,
+    gym_session_cost: gymLegacy.gym_session_cost,
+    gym_sessions_per_week: gymLegacy.gym_sessions_per_week,
+    gym_category: gymLegacy.gym_category,
     emergency_category: s.emergency_category,
     investments_category: s.investments_category,
+    sheet_sync_enabled: Boolean(s.sheet_sync_enabled),
+    sheet_sync_url: String(s.sheet_sync_url || '').trim(),
+    sheet_sync_interval_seconds: Math.max(15, Number(s.sheet_sync_interval_seconds) || 60),
+    sheet_sync_last_at: s.sheet_sync_last_at ?? null,
+    sheet_sync_last_error: s.sheet_sync_last_error ?? null,
+    sheet_sync_last_count: Number(s.sheet_sync_last_count) || 0,
   }
 }
 
@@ -62,5 +79,6 @@ export function mergeDefaults(partial) {
     investment_goals: normalizeInvestmentGoals(
       partial.investment_goals?.length ? partial.investment_goals : DEFAULT_APP_SETTINGS.investment_goals,
     ),
+    trackers: normalizeTrackers(partial.trackers, partial),
   }
 }

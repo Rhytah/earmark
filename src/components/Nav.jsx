@@ -1,11 +1,13 @@
+import { useMemo } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Receipt, Dumbbell, TrendingUp, Settings, PieChart, Moon, Sun, Landmark } from 'lucide-react'
+import { LayoutDashboard, Receipt, TrendingUp, Settings, PieChart, Moon, Sun, Landmark, LogOut, Activity } from 'lucide-react'
 import { useAppSettings } from '../context/useAppSettings'
+import { useAuth } from '../context/useAuth'
+import { enabledTrackers, getTrackerIcon } from '../lib/trackers'
 
-const links = [
+const coreLinks = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/expenses', icon: Receipt, label: 'Expenses' },
-  { to: '/gym', icon: Dumbbell, label: 'Gym' },
   { to: '/goals', icon: TrendingUp, label: 'Goals' },
   { to: '/reports', icon: PieChart, label: 'Reports' },
   { to: '/investments', icon: Landmark, label: 'Investments' },
@@ -14,6 +16,31 @@ const links = [
 
 export default function Nav({ theme, onToggleTheme }) {
   const { settings } = useAppSettings()
+  const { user, signOut } = useAuth()
+  const email = user?.email ?? ''
+
+  const links = useMemo(() => {
+    const trackers = enabledTrackers(settings.trackers)
+    const trackerLinks =
+      trackers.length === 1
+        ? [
+            {
+              to: `/trackers/${trackers[0].id}`,
+              icon: getTrackerIcon(trackers[0].icon),
+              label: trackers[0].label,
+            },
+          ]
+        : trackers.length > 1
+          ? [{ to: '/trackers', icon: Activity, label: 'Trackers' }]
+          : []
+
+    return [
+      coreLinks[0],
+      coreLinks[1],
+      ...trackerLinks,
+      ...coreLinks.slice(2),
+    ]
+  }, [settings.trackers])
 
   return (
     <>
@@ -38,16 +65,28 @@ export default function Nav({ theme, onToggleTheme }) {
             </NavLink>
           )
         })}
-        <button
-          type="button"
-          className="nav-theme-toggle"
-          onClick={onToggleTheme}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-        >
-          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
-        </button>
+        <div className="nav-sidebar-footer">
+          {email && <div className="nav-user-email" title={email}>{email}</div>}
+          <button
+            type="button"
+            className="nav-theme-toggle"
+            onClick={onToggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+          </button>
+          <button
+            type="button"
+            className="nav-sign-out"
+            onClick={() => void signOut()}
+            aria-label="Sign out"
+          >
+            <LogOut size={16} />
+            <span>Sign out</span>
+          </button>
+        </div>
       </nav>
 
       <nav className="nav-bottom" aria-label="Mobile navigation">

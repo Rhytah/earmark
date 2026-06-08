@@ -143,7 +143,7 @@ function matchPayment(raw, paymentMethods, fallback) {
 /**
  * @returns {{ valid: object[], invalid: { line: number, reason: string, cells?: string[] }[] }}
  */
-export function parseExpenseCsv(csvText, { categories, paymentMethods }) {
+export function parseExpenseCsv(csvText, { categories, paymentMethods, allowUnknownCategories = false }) {
   const matrix = parseCsvText(csvText)
   const valid = []
   const invalid = []
@@ -176,7 +176,11 @@ export function parseExpenseCsv(csvText, { categories, paymentMethods }) {
     }
 
     const date = parseIsoOrDmy(get('date'))
-    const categoryResult = matchCategory(get('category'), categories)
+    let categoryResult = matchCategory(get('category'), categories)
+    const rawCategory = get('category').trim()
+    if (!categoryResult.ok && allowUnknownCategories && rawCategory) {
+      categoryResult = { ok: true, value: rawCategory }
+    }
     const description = get('description').trim() || 'Imported'
     const amount = parseAmount(get('amount'))
     const payment_method = matchPayment(get('payment_method'), paymentMethods, defaultPay)

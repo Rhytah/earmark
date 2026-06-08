@@ -2,20 +2,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { DEFAULT_APP_SETTINGS } from '../lib/constants'
 import { mergeDefaults, rowToSettings, settingsToRow } from '../lib/settingsDb'
+import { useAuth } from './useAuth'
 import { AppSettingsContext } from './settingsContext'
 
 export function SettingsProvider({ children }) {
+  const { user } = useAuth()
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const load = useCallback(async () => {
+    if (!user?.id) {
+      setSettings(null)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setError(null)
     const { data, error: fetchError } = await supabase
       .from('app_settings')
       .select('*')
-      .eq('id', 'default')
+      .eq('user_id', user.id)
       .maybeSingle()
 
     if (fetchError) {
@@ -27,7 +35,7 @@ export function SettingsProvider({ children }) {
     }
 
     if (!data) {
-      const row = settingsToRow(DEFAULT_APP_SETTINGS)
+      const row = settingsToRow(DEFAULT_APP_SETTINGS, user.id)
       const { data: created, error: insertError } = await supabase
         .from('app_settings')
         .insert(row)
@@ -47,7 +55,7 @@ export function SettingsProvider({ children }) {
 
     setSettings(rowToSettings(data))
     setLoading(false)
-  }, [])
+  }, [user?.id])
 
   useEffect(() => {
     void Promise.resolve().then(() => load())
@@ -58,17 +66,22 @@ export function SettingsProvider({ children }) {
     if (title) document.title = title
   }, [settings?.app_title])
 
-  const saveSettings = useCallback(async (next) => {
-    const merged = mergeDefaults(next)
-    const row = settingsToRow(merged)
-    const { error: upsertError } = await supabase.from('app_settings').upsert(row, { onConflict: 'id' })
-    if (upsertError) {
-      console.error('[app_settings upsert]', upsertError.message, upsertError)
-      return { error: upsertError }
-    }
-    setSettings(merged)
-    return { error: null }
-  }, [])
+  const saveSettings = useCallback(
+    async (next) => {
+      if (!user?.id) return { error: new Error('Not signed in') }
+
+      const merged = mergeDefaults(next)
+      const row = settingsToRow(merged, user.id)
+      const { error: upsertError } = await supabase.from('app_settings').upsert(row, { onConflict: 'user_id' })
+      if (upsertError) {
+        console.error('[app_settings upsert]', upsertError.message, upsertError)
+        return { error: upsertError }
+      }
+      setSettings(merged)
+      return { error: null }
+    },
+    [user?.id],
+  )
 
   const value = useMemo(
     () => ({

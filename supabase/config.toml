@@ -1,2 +1,5 @@
 [functions.insurance-analyzer]
 verify_jwt = false
+
+[functions.google-sheet-fetch]
+verify_jwt = true

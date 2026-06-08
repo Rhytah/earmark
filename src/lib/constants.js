@@ -19,11 +19,18 @@ export const DEFAULT_APP_SETTINGS = {
     { label: 'Long-term goal 3', target: 50_000_000, years: 10 },
   ],
   emergency_fund_target: 10_000_000,
-  gym_session_cost: 15_000,
+  gym_session_cost: 0,
   gym_sessions_per_week: 3,
   gym_category: 'Gym',
+  trackers: [],
   emergency_category: 'Emergency fund',
   investments_category: 'Investments',
+  sheet_sync_enabled: false,
+  sheet_sync_url: '',
+  sheet_sync_interval_seconds: 60,
+  sheet_sync_last_at: null,
+  sheet_sync_last_error: null,
+  sheet_sync_last_count: 0,
 }
 
 export function budgetLineAmount(budget, categoryName) {

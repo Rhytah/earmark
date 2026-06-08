@@ -34,6 +34,12 @@ export function useExpenses(month = getCurrentMonth()) {
     void Promise.resolve().then(() => fetch())
   }, [fetch])
 
+  useEffect(() => {
+    const onSync = () => void fetch()
+    window.addEventListener('earmark:expenses-synced', onSync)
+    return () => window.removeEventListener('earmark:expenses-synced', onSync)
+  }, [fetch])
+
   const addExpense = async (expense) => {
     const { data, error } = await supabase.from('expenses').insert([expense]).select()
     if (!error) setExpenses(prev => [data[0], ...prev])
@@ -56,42 +62,88 @@ export function useExpenses(month = getCurrentMonth()) {
   return { expenses, loading, addExpense, addExpensesBulk, deleteExpense, refetch: fetch }
 }
 
-export function useGymSessions(month = getCurrentMonth()) {
-  const [sessions, setSessions] = useState([])
+export function useTrackerLogs(trackerId, month = getCurrentMonth()) {
+  const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
 
   const fetch = useCallback(async () => {
+    if (!trackerId) {
+      setLogs([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const { data, error } = await supabase
       .from('gym_sessions')
       .select('*')
       .eq('month', month)
+      .eq('tracker_id', trackerId)
       .order('date', { ascending: false })
-    if (error) console.error('[supabase gym_sessions]', error.message, error)
-    setSessions(data || [])
+    if (error) console.error('[supabase tracker logs]', error.message, error)
+    setLogs(data || [])
     setLoading(false)
-  }, [month])
+  }, [trackerId, month])
 
   useEffect(() => {
     void Promise.resolve().then(() => fetch())
   }, [fetch])
 
-  const logSession = async (date) => {
+  const logEntry = async (date) => {
     const { data, error } = await supabase
       .from('gym_sessions')
-      .insert([{ date, month }])
+      .insert([{ date, month, tracker_id: trackerId }])
       .select()
-    if (!error) setSessions(prev => [data[0], ...prev])
+    if (!error) setLogs((prev) => [data[0], ...prev])
     return { data, error }
   }
 
-  const removeSession = async (id) => {
+  const removeLog = async (id) => {
     const { error } = await supabase.from('gym_sessions').delete().eq('id', id)
-    if (!error) setSessions(prev => prev.filter(s => s.id !== id))
+    if (!error) setLogs((prev) => prev.filter((s) => s.id !== id))
     return { error }
   }
 
-  return { sessions, loading, logSession, removeSession, refetch: fetch }
+  return { logs, loading, logEntry, removeLog, refetch: fetch }
+}
+
+/** @deprecated Use useTrackerLogs */
+export function useGymSessions(month = getCurrentMonth()) {
+  return useTrackerLogs('gym', month)
+}
+
+export function useTrackerLogsBatch(month = getCurrentMonth(), trackerIds = []) {
+  const [logsByTracker, setLogsByTracker] = useState({})
+  const [loading, setLoading] = useState(true)
+  const idKey = trackerIds.join(',')
+
+  const fetch = useCallback(async () => {
+    if (!trackerIds.length) {
+      setLogsByTracker({})
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('gym_sessions')
+      .select('*')
+      .eq('month', month)
+      .in('tracker_id', trackerIds)
+      .order('date', { ascending: false })
+    if (error) console.error('[supabase tracker logs batch]', error.message, error)
+
+    const grouped = Object.fromEntries(trackerIds.map((id) => [id, []]))
+    for (const row of data || []) {
+      if (grouped[row.tracker_id]) grouped[row.tracker_id].push(row)
+    }
+    setLogsByTracker(grouped)
+    setLoading(false)
+  }, [month, idKey])
+
+  useEffect(() => {
+    void Promise.resolve().then(() => fetch())
+  }, [fetch])
+
+  return { logsByTracker, loading, refetch: fetch }
 }
 
 export function useExpensesHistory(monthsBack = 6, endMonth = getCurrentMonth()) {
@@ -120,6 +172,12 @@ export function useExpensesHistory(monthsBack = 6, endMonth = getCurrentMonth())
     void Promise.resolve().then(() => fetch())
   }, [fetch])
 
+  useEffect(() => {
+    const onSync = () => void fetch()
+    window.addEventListener('earmark:expenses-synced', onSync)
+    return () => window.removeEventListener('earmark:expenses-synced', onSync)
+  }, [fetch])
+
   return { expenses, loading, refetch: fetch }
 }
 
@@ -140,6 +198,12 @@ export function useExpensesRange(startDate = null, endDate = null) {
 
   useEffect(() => {
     void Promise.resolve().then(() => fetch())
+  }, [fetch])
+
+  useEffect(() => {
+    const onSync = () => void fetch()
+    window.addEventListener('earmark:expenses-synced', onSync)
+    return () => window.removeEventListener('earmark:expenses-synced', onSync)
   }, [fetch])
 
   return { expenses, loading, refetch: fetch }
@@ -167,7 +231,7 @@ export function useSavingsSnapshot() {
   const upsertSnapshot = async (snapshot) => {
     const { data, error } = await supabase
       .from('savings_snapshots')
-      .upsert([snapshot], { onConflict: 'month' })
+      .upsert([snapshot], { onConflict: 'user_id,month' })
       .select()
     if (!error) fetch()
     return { data, error }
