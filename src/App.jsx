@@ -7,6 +7,7 @@ import Expenses from './pages/Expenses'
 import Gym from './pages/Gym'
 import Goals from './pages/Goals'
 import Reports from './pages/Reports'
+import Investments from './pages/Investments'
 import Settings from './pages/Settings'
 
 import './index.css'
@@ -39,6 +40,7 @@ export default function App() {
               <Route path="/gym" element={<Gym />} />
               <Route path="/goals" element={<Goals />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/investments" element={<Investments />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>

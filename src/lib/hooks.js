@@ -123,6 +123,28 @@ export function useExpensesHistory(monthsBack = 6, endMonth = getCurrentMonth())
   return { expenses, loading, refetch: fetch }
 }
 
+export function useExpensesRange(startDate = null, endDate = null) {
+  const [expenses, setExpenses] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    let query = supabase.from('expenses').select('*')
+    if (startDate) query = query.gte('date', startDate)
+    if (endDate) query = query.lte('date', endDate)
+    const { data, error } = await query.order('date', { ascending: true })
+    if (error) console.error('[supabase expenses range]', error.message, error)
+    setExpenses(data || [])
+    setLoading(false)
+  }, [startDate, endDate])
+
+  useEffect(() => {
+    void Promise.resolve().then(() => fetch())
+  }, [fetch])
+
+  return { expenses, loading, refetch: fetch }
+}
+
 export function useSavingsSnapshot() {
   const [snapshots, setSnapshots] = useState([])
   const [loading, setLoading] = useState(true)
@@ -152,4 +174,104 @@ export function useSavingsSnapshot() {
   }
 
   return { snapshots, loading, upsertSnapshot, refetch: fetch }
+}
+
+export function useInvestments(month = getCurrentMonth()) {
+  const [transactions, setTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    const [year, monthNum] = month.split('-').map(Number)
+    const mm = String(monthNum).padStart(2, '0')
+    const endDay = new Date(year, monthNum, 0).getDate()
+    const start = `${year}-${mm}-01`
+    const end = `${year}-${mm}-${String(endDay).padStart(2, '0')}`
+
+    const { data, error } = await supabase
+      .from('investment_transactions')
+      .select('*')
+      .gte('date', start)
+      .lte('date', end)
+      .order('date', { ascending: false })
+    if (error) console.error('[supabase investment_transactions]', error.message, error)
+    setTransactions(data || [])
+    setLoading(false)
+  }, [month])
+
+  useEffect(() => {
+    void Promise.resolve().then(() => fetch())
+  }, [fetch])
+
+  const addTransactionsBulk = async (rows) => {
+    if (!rows?.length) return { data: [], error: null }
+    const { data, error } = await supabase.from('investment_transactions').insert(rows).select()
+    if (!error) await fetch()
+    return { data, error }
+  }
+
+  const deleteTransaction = async (id) => {
+    const { error } = await supabase.from('investment_transactions').delete().eq('id', id)
+    if (!error) setTransactions((prev) => prev.filter((x) => x.id !== id))
+    return { error }
+  }
+
+  return { transactions, loading, addTransactionsBulk, deleteTransaction, refetch: fetch }
+}
+
+export function useInvestmentsRange(startDate = null, endDate = null) {
+  const [transactions, setTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    let query = supabase.from('investment_transactions').select('*')
+    if (startDate) query = query.gte('date', startDate)
+    if (endDate) query = query.lte('date', endDate)
+    const { data, error } = await query.order('date', { ascending: false })
+    if (error) console.error('[supabase investment_transactions range]', error.message, error)
+    setTransactions(data || [])
+    setLoading(false)
+  }, [startDate, endDate])
+
+  useEffect(() => {
+    void Promise.resolve().then(() => fetch())
+  }, [fetch])
+
+  const addTransactionsBulk = async (rows) => {
+    if (!rows?.length) return { data: [], error: null }
+    const { data, error } = await supabase.from('investment_transactions').insert(rows).select()
+    if (!error) await fetch()
+    return { data, error }
+  }
+
+  const deleteTransaction = async (id) => {
+    const { error } = await supabase.from('investment_transactions').delete().eq('id', id)
+    if (!error) setTransactions((prev) => prev.filter((x) => x.id !== id))
+    return { error }
+  }
+
+  return { transactions, loading, addTransactionsBulk, deleteTransaction, refetch: fetch }
+}
+
+export function useInsurancePolicies() {
+  const [policies, setPolicies] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('insurance_policies')
+      .select('*, insurance_bonuses(*), insurance_documents(*)')
+      .order('created_at', { ascending: false })
+    if (error) console.error('[supabase insurance_policies]', error.message, error)
+    setPolicies(data || [])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void Promise.resolve().then(() => fetch())
+  }, [fetch])
+
+  return { policies, loading, refetch: fetch }
 }

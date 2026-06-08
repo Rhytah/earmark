@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis } from 'recharts'
 import { useAppSettings } from '../context/useAppSettings'
-import { useExpensesHistory, useSavingsSnapshot } from '../lib/hooks'
+import { useExpensesRange, useInvestmentsRange, useSavingsSnapshot } from '../lib/hooks'
 import { fmt, getCurrentMonth } from '../lib/constants'
 import { Card, MetricCard, SectionTitle, Spinner, MonthPicker } from '../components/UI'
 
@@ -23,7 +23,31 @@ export default function Reports() {
   const { salary, budget, investments_category, emergency_category } = settings
   const [month, setMonth] = useState(getCurrentMonth())
   const [monthsBack, setMonthsBack] = useState(12)
-  const { expenses, loading } = useExpensesHistory(monthsBack, month)
+  const [rangeMode, setRangeMode] = useState('rolling')
+  const [customStart, setCustomStart] = useState(`${new Date().getFullYear()}-01-01`)
+  const [customEnd, setCustomEnd] = useState(`${new Date().toISOString().slice(0, 10)}`)
+
+  const { rangeStart, rangeEnd, rangeLabel } = useMemo(() => {
+    if (rangeMode === 'all') {
+      return { rangeStart: null, rangeEnd: null, rangeLabel: 'all time' }
+    }
+    if (rangeMode === 'custom') {
+      return {
+        rangeStart: customStart || null,
+        rangeEnd: customEnd || null,
+        rangeLabel: customStart && customEnd ? `${customStart} to ${customEnd}` : 'custom range',
+      }
+    }
+    const [endYear, endMonthNum] = month.split('-').map(Number)
+    const startDate = new Date(endYear, endMonthNum - monthsBack, 1)
+    const start = startDate.toISOString().slice(0, 10)
+    const endDay = new Date(endYear, endMonthNum, 0).getDate()
+    const end = `${endYear}-${String(endMonthNum).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
+    return { rangeStart: start, rangeEnd: end, rangeLabel: `last ${monthsBack} months` }
+  }, [rangeMode, customStart, customEnd, month, monthsBack])
+
+  const { expenses, loading } = useExpensesRange(rangeStart, rangeEnd)
+  const { transactions: investmentTransactions, loading: investmentsLoading } = useInvestmentsRange(rangeStart, rangeEnd)
   const { snapshots, loading: snapshotsLoading } = useSavingsSnapshot()
 
   const report = useMemo(() => {
@@ -152,6 +176,13 @@ export default function Reports() {
       }
     })
 
+    const investmentOutflow = investmentTransactions
+      .filter((t) => ['buy', 'deposit'].includes(t.tx_type))
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0)
+    const investmentInflow = investmentTransactions
+      .filter((t) => ['sell', 'dividend'].includes(t.tx_type))
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0)
+
     const spendingByType = budget.reduce(
       (acc, b) => {
         const actual = byCategoryMap[b.category] || 0
@@ -160,6 +191,8 @@ export default function Reports() {
       },
       { fixed: 0, variable: 0, savings: 0 },
     )
+    // Investment outflows are treated as savings allocations from income.
+    spendingByType.savings += investmentOutflow
 
     const earningsGuide = [
       {
@@ -211,6 +244,7 @@ export default function Reports() {
     return {
       totalSpent,
       totalEarnings: salary * Math.max(months.length, 1),
+      incomeAllocated: totalSpent + investmentOutflow,
       topCategory,
       byCategory,
       avgMonthlySpend,
@@ -227,11 +261,14 @@ export default function Reports() {
       spendingByType,
       investmentBalance,
       investmentGrowth: investmentBalance - previousInvestmentBalance,
+      investmentOutflow,
+      investmentInflow,
+      investmentNetFlow: investmentInflow - investmentOutflow,
       investedThroughExpenses: byCategoryMap[investments_category] || 0,
       emergencyFunded: byCategoryMap[emergency_category] || 0,
       monthCount: months.length || 1,
     }
-  }, [expenses, salary, budget, snapshots, investments_category, emergency_category])
+  }, [expenses, salary, budget, snapshots, investments_category, emergency_category, investmentTransactions, month])
 
   const pieData = report.byCategory.slice(0, 6).map((c, i) => ({
     name: c.category,
@@ -246,23 +283,47 @@ export default function Reports() {
           <h1 className="page-title">Reports</h1>
           <p className="page-subtitle">Smart overview of spending, earnings, investments, and projections</p>
         </div>
-        <div className="page-header-actions">
-          <MonthPicker value={month} onChange={setMonth} />
-          <select value={monthsBack} onChange={(e) => setMonthsBack(Number(e.target.value))}>
-            <option value={3}>Last 3 months</option>
-            <option value={6}>Last 6 months</option>
-            <option value={12}>Last 12 months</option>
-            <option value={24}>Last 24 months</option>
+        <div
+          className="page-header-actions"
+          style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}
+        >
+          <select value={rangeMode} onChange={(e) => setRangeMode(e.target.value)} style={{ minWidth: 0 }}>
+            <option value="rolling">Rolling months</option>
+            <option value="custom">Custom date range</option>
+            <option value="all">All time</option>
           </select>
+          {rangeMode === 'rolling' && (
+            <>
+              <MonthPicker value={month} onChange={setMonth} />
+              <select value={monthsBack} onChange={(e) => setMonthsBack(Number(e.target.value))} style={{ minWidth: 0 }}>
+                <option value={3}>Last 3 months</option>
+                <option value={6}>Last 6 months</option>
+                <option value={12}>Last 12 months</option>
+                <option value={24}>Last 24 months</option>
+              </select>
+            </>
+          )}
+          {rangeMode === 'custom' && (
+            <>
+              <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
+              <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+            </>
+          )}
         </div>
       </header>
 
-      {loading || snapshotsLoading ? (
+      <Card style={{ marginBottom: '1rem' }}>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+          Active report range: <strong style={{ color: 'var(--text)' }}>{rangeLabel}</strong>
+        </div>
+      </Card>
+
+      {loading || snapshotsLoading || investmentsLoading ? (
         <Spinner />
       ) : (
         <>
           <div className="metric-grid">
-            <MetricCard label={`Spent (last ${monthsBack} months)`} value={report.totalSpent} />
+            <MetricCard label={`Spent (${rangeLabel})`} value={report.totalSpent} />
             <MetricCard label="Estimated earnings" value={report.totalEarnings} color="var(--green)" />
             <MetricCard
               label="Top spending area"
@@ -275,6 +336,12 @@ export default function Reports() {
               value={report.avgMonthlySpend}
               sub={`Across ${report.monthCount} month(s)`}
               color="var(--text)"
+            />
+            <MetricCard
+              label="Income allocated"
+              value={report.incomeAllocated}
+              sub={`Spent + invested from ${rangeLabel}`}
+              color={report.incomeAllocated > report.totalEarnings ? 'var(--red)' : 'var(--accent)'}
             />
           </div>
 
@@ -329,7 +396,7 @@ export default function Reports() {
                   key={row.key}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1.2fr 1fr 1fr 1fr auto',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                     gap: 10,
                     alignItems: 'center',
                     borderTop: '1px solid var(--border)',
@@ -366,6 +433,9 @@ export default function Reports() {
             <MetricCard label="Investment balances" value={report.investmentBalance} color="var(--accent)" />
             <MetricCard label="Investment growth (latest)" value={report.investmentGrowth} color={report.investmentGrowth < 0 ? 'var(--red)' : 'var(--green)'} />
             <MetricCard label="Invested via expenses" value={report.investedThroughExpenses} />
+            <MetricCard label="Invested via transactions" value={report.investmentOutflow} color="var(--accent)" />
+            <MetricCard label="Investment inflows" value={report.investmentInflow} color="var(--green)" />
+            <MetricCard label="Investment net flow" value={report.investmentNetFlow} color={report.investmentNetFlow < 0 ? 'var(--red)' : 'var(--green)'} />
             <MetricCard label="Emergency funded via expenses" value={report.emergencyFunded} />
           </div>
 
@@ -420,7 +490,7 @@ export default function Reports() {
                   key={row.category}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1.6fr 1fr 1fr 1fr auto',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
                     gap: 10,
                     alignItems: 'center',
                     borderTop: '1px solid var(--border)',

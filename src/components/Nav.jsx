@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Receipt, Dumbbell, TrendingUp, Settings, PieChart, Moon, Sun } from 'lucide-react'
+import { LayoutDashboard, Receipt, Dumbbell, TrendingUp, Settings, PieChart, Moon, Sun, Landmark } from 'lucide-react'
 import { useAppSettings } from '../context/useAppSettings'
 
 const links = [
@@ -8,6 +8,7 @@ const links = [
   { to: '/gym', icon: Dumbbell, label: 'Gym' },
   { to: '/goals', icon: TrendingUp, label: 'Goals' },
   { to: '/reports', icon: PieChart, label: 'Reports' },
+  { to: '/investments', icon: Landmark, label: 'Investments' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

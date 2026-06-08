@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useAppSettings } from '../context/useAppSettings'
-import { useExpenses } from '../lib/hooks'
+import { useExpenses, useInvestments } from '../lib/hooks'
 import { fmt, getCurrentMonth } from '../lib/constants'
 import { Card, MetricCard, ProgressBar, SectionTitle, Badge, MonthPicker, Spinner } from '../components/UI'
 
@@ -33,10 +33,14 @@ export default function Dashboard() {
   const { salary, budget } = settings
   const [month, setMonth] = useState(getCurrentMonth())
   const { expenses, loading } = useExpenses(month)
+  const { transactions } = useInvestments(month)
 
   const { totalSpend, remaining, byCategory, chartData } = useMemo(() => {
     const totalSpend = expenses.reduce((s, e) => s + (e.amount || 0), 0)
-    const remaining = salary - totalSpend
+    const investedOutflow = transactions
+      .filter((t) => ['buy', 'deposit'].includes(t.tx_type))
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0)
+    const remaining = salary - totalSpend - investedOutflow
 
     const spendMap = {}
     expenses.forEach(e => {
@@ -58,9 +62,13 @@ export default function Dashboard() {
     }))
 
     return { totalSpend, remaining, byCategory, chartData }
-  }, [expenses, salary, budget])
+  }, [expenses, salary, budget, transactions])
 
   const typeColor = { fixed: 'var(--teal)', variable: 'var(--amber)', savings: 'var(--green)' }
+  const investedThisMonth = transactions
+    .filter((t) => t.tx_type === 'buy' || t.tx_type === 'deposit')
+    .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0)
+  const incomeUsed = totalSpend + investedThisMonth
 
   return (
     <div className="page">
@@ -78,12 +86,13 @@ export default function Dashboard() {
         <MetricCard label="Monthly salary" value={salary} />
         <MetricCard label="Total spent" value={totalSpend} color={totalSpend > salary * 0.8 ? 'var(--red)' : 'var(--text)'} />
         <MetricCard label="Remaining" value={remaining} color={remaining < 0 ? 'var(--red)' : 'var(--green)'} />
+        <MetricCard label="Invested (month)" value={investedThisMonth} color="var(--accent)" />
         <MetricCard
-          label="% used"
-          value={salary > 0 ? Math.round((totalSpend / salary) * 100) : 0}
+          label="% income allocated"
+          value={salary > 0 ? Math.round((incomeUsed / salary) * 100) : 0}
           prefix=""
           sub={`of UGX ${fmt(salary)}`}
-          color={totalSpend > salary ? 'var(--red)' : 'var(--text)'}
+          color={incomeUsed > salary ? 'var(--red)' : 'var(--text)'}
         />
       </div>
 
@@ -91,9 +100,9 @@ export default function Dashboard() {
       <Card style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
           <span style={{ color: 'var(--muted)' }}>Salary used</span>
-          <span style={{ fontWeight: 600 }}>{fmt(totalSpend)} / {fmt(salary)}</span>
+          <span style={{ fontWeight: 600 }}>{fmt(incomeUsed)} / {fmt(salary)}</span>
         </div>
-        <ProgressBar value={totalSpend} max={salary} color="var(--accent)" height={10} />
+        <ProgressBar value={incomeUsed} max={salary} color="var(--accent)" height={10} />
       </Card>
 
       {/* Chart */}
