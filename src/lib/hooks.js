@@ -42,8 +42,8 @@ export function useExpenses(month = getCurrentMonth()) {
 
   const addExpense = async (expense) => {
     const { data, error } = await supabase.from('expenses').insert([expense]).select()
-    if (!error) setExpenses(prev => [data[0], ...prev])
-    return { data, error }
+    if (!error) setExpenses((prev) => [data[0], ...prev])
+    return { data: data?.[0] ?? null, error }
   }
 
   const addExpensesBulk = async (rows) => {
@@ -53,13 +53,19 @@ export function useExpenses(month = getCurrentMonth()) {
     return { data, error }
   }
 
+  const updateExpense = async (id, patch) => {
+    const { data, error } = await supabase.from('expenses').update(patch).eq('id', id).select().single()
+    if (!error) setExpenses((prev) => prev.map((e) => (e.id === id ? data : e)))
+    return { data, error }
+  }
+
   const deleteExpense = async (id) => {
     const { error } = await supabase.from('expenses').delete().eq('id', id)
     if (!error) setExpenses(prev => prev.filter(e => e.id !== id))
     return { error }
   }
 
-  return { expenses, loading, addExpense, addExpensesBulk, deleteExpense, refetch: fetch }
+  return { expenses, loading, addExpense, addExpensesBulk, updateExpense, deleteExpense, refetch: fetch }
 }
 
 export function useTrackerLogs(trackerId, month = getCurrentMonth()) {

@@ -1,9 +1,16 @@
-import { useState, useMemo } from 'react'
-import { Trash2, Plus, X, FileSpreadsheet } from 'lucide-react'
+import { useRef, useState, useMemo } from 'react'
+import { Trash2, Plus, X, FileSpreadsheet, Paperclip, Receipt } from 'lucide-react'
 import { useAppSettings } from '../context/useAppSettings'
 import { useExpenses } from '../lib/hooks'
 import { parseExpensePasteMode } from '../lib/ledgerPaste'
+import {
+  attachReceiptToExpense,
+  getReceiptSignedUrl,
+  removeExpenseReceipt,
+  uploadExpenseReceipt,
+} from '../lib/expenseReceipts'
 import { fmt, getCurrentMonth } from '../lib/constants'
+import ExpenseSheetSync from '../components/ExpenseSheetSync'
 import { Card, Btn, Spinner, EmptyState, MonthPicker } from '../components/UI'
 import { format, parseISO } from 'date-fns'
 
@@ -190,6 +197,7 @@ function AddForm({ onAdd, onClose, categories, paymentMethods }) {
     amount: '',
     payment_method: paymentMethods[0] ?? 'Card',
   })
+  const [receiptFile, setReceiptFile] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -200,8 +208,20 @@ function AddForm({ onAdd, onClose, categories, paymentMethods }) {
     if (!form.description.trim()) { setError('Add a description'); return }
     setSaving(true)
     setError('')
-    const { error } = await onAdd({ ...form, amount: Number(form.amount) })
+    const { data, error } = await onAdd({ ...form, amount: Number(form.amount) })
     if (error) { setError(error.message); setSaving(false); return }
+
+    if (receiptFile && data?.id) {
+      try {
+        const { path, name } = await uploadExpenseReceipt(receiptFile, data.id)
+        await attachReceiptToExpense(data.id, path, name)
+      } catch (uploadErr) {
+        setError(uploadErr.message || 'Expense saved but receipt upload failed.')
+        setSaving(false)
+        return
+      }
+    }
+
     setSaving(false)
     onClose()
   }
@@ -242,10 +262,139 @@ function AddForm({ onAdd, onClose, categories, paymentMethods }) {
               ))}
             </select>
           ))}
+          {field(
+            'Receipt (optional)',
+            <div className="receipt-upload">
+              <input
+                type="file"
+                accept="image/*,.pdf,application/pdf"
+                onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+              />
+              {receiptFile && (
+                <span className="receipt-upload-name">
+                  <Paperclip size={14} /> {receiptFile.name}
+                </span>
+              )}
+            </div>,
+          )}
           {error && <div style={{ color: 'var(--red)', fontSize: 12 }}>{error}</div>}
           <Btn onClick={handleSubmit} disabled={saving}>{saving ? 'Saving…' : 'Add expense'}</Btn>
         </div>
       </Card>
+    </div>
+  )
+}
+
+function ExpenseRow({ expense, catColor, onDelete, onReceiptUpdated, deleting }) {
+  const fileRef = useRef(null)
+  const [receiptBusy, setReceiptBusy] = useState(false)
+
+  const openReceipt = async () => {
+    if (!expense.receipt_path) return
+    setReceiptBusy(true)
+    try {
+      const url = await getReceiptSignedUrl(expense.receipt_path)
+      if (url) window.open(url, '_blank', 'noopener,noreferrer')
+    } finally {
+      setReceiptBusy(false)
+    }
+  }
+
+  const attachReceipt = async (file) => {
+    if (!file) return
+    setReceiptBusy(true)
+    try {
+      const { path, name } = await uploadExpenseReceipt(file, expense.id)
+      const updated = await attachReceiptToExpense(expense.id, path, name)
+      onReceiptUpdated(updated)
+    } finally {
+      setReceiptBusy(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '12px 16px',
+        gap: 12,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+        <div style={{ width: 8, height: 8, borderRadius: 2, background: catColor, flexShrink: 0 }} />
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontWeight: 500,
+              fontSize: 13,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {expense.description}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <span>{expense.category}</span>
+            <span>·</span>
+            <span>{expense.payment_method}</span>
+            {expense.source === 'google_sheet' && (
+              <>
+                <span>·</span>
+                <span>Sheet</span>
+              </>
+            )}
+            {expense.receipt_name && (
+              <>
+                <span>·</span>
+                <span>{expense.receipt_name}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>UGX {fmt(expense.amount)}</span>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,.pdf,application/pdf"
+          style={{ display: 'none' }}
+          onChange={(e) => void attachReceipt(e.target.files?.[0])}
+        />
+        {expense.receipt_path ? (
+          <button
+            type="button"
+            onClick={() => void openReceipt()}
+            disabled={receiptBusy}
+            title="View receipt"
+            className="expense-receipt-btn"
+          >
+            <Receipt size={14} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={receiptBusy}
+            title="Attach receipt"
+            className="expense-receipt-btn"
+          >
+            <Paperclip size={14} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onDelete(expense)}
+          disabled={deleting === expense.id}
+          style={{ background: 'none', color: 'var(--muted)', padding: 4, opacity: deleting === expense.id ? 0.4 : 1 }}
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -255,7 +404,7 @@ export default function Expenses() {
   const categories = settings.budget.map((b) => b.category)
   const paymentMethods = settings.payment_methods?.length ? settings.payment_methods : ['Card']
   const [month, setMonth] = useState(getCurrentMonth())
-  const { expenses, loading, addExpense, addExpensesBulk, deleteExpense } = useExpenses(month)
+  const { expenses, loading, addExpense, addExpensesBulk, deleteExpense, refetch } = useExpenses(month)
   const [showForm, setShowForm] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
   const [deleting, setDeleting] = useState(null)
@@ -269,9 +418,16 @@ export default function Expenses() {
 
   const total = expenses.reduce((s, e) => s + e.amount, 0)
 
-  const handleDelete = async (id) => {
-    setDeleting(id)
-    await deleteExpense(id)
+  const handleDelete = async (expense) => {
+    setDeleting(expense.id)
+    if (expense.receipt_path) {
+      try {
+        await removeExpenseReceipt(expense)
+      } catch {
+        // expense row may still delete even if storage fails
+      }
+    }
+    await deleteExpense(expense.id)
     setDeleting(null)
   }
 
@@ -297,6 +453,8 @@ export default function Expenses() {
           </Btn>
         </div>
       </header>
+
+      <ExpenseSheetSync />
 
       {showCsv && (
         <ImportPasteModal
@@ -330,33 +488,14 @@ export default function Expenses() {
               </div>
               <Card style={{ padding: 0, overflow: 'hidden' }}>
                 {items.map((e, i) => (
-                  <div key={e.id} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                    gap: 12,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 2, background: catColor(e.category), flexShrink: 0 }} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 500, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.description}</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, display: 'flex', gap: 6 }}>
-                          <span>{e.category}</span>
-                          <span>·</span>
-                          <span>{e.payment_method}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14 }}>UGX {fmt(e.amount)}</span>
-                      <button
-                        onClick={() => handleDelete(e.id)}
-                        disabled={deleting === e.id}
-                        style={{ background: 'none', color: 'var(--muted)', padding: 4, opacity: deleting === e.id ? 0.4 : 1 }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                  <div key={e.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                    <ExpenseRow
+                      expense={e}
+                      catColor={catColor(e.category)}
+                      deleting={deleting}
+                      onDelete={handleDelete}
+                      onReceiptUpdated={() => void refetch()}
+                    />
                   </div>
                 ))}
               </Card>
