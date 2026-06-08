@@ -35,7 +35,7 @@ export default function Login() {
     }
 
     if (mode === 'signup' && data?.user && !data.session) {
-      setMessage('Account created. Check your email to confirm, then sign in.')
+      setMessage('Account created. Check your email — the confirmation link will bring you back to this app.')
       setMode('signin')
     }
   }

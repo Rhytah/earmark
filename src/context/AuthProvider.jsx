@@ -1,6 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { getAppUrl } from '../lib/appUrl'
 import { AuthContext } from './authContext'
+
+async function completeAuthRedirect() {
+  const searchParams = new URLSearchParams(window.location.search)
+  const code = searchParams.get('code')
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) {
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+    return
+  }
+
+  if (window.location.hash.includes('access_token=')) {
+    await supabase.auth.getSession()
+    window.history.replaceState({}, document.title, window.location.pathname)
+  }
+}
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
@@ -9,11 +27,15 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true
 
-    supabase.auth.getSession().then(({ data }) => {
+    const init = async () => {
+      await completeAuthRedirect()
+      const { data } = await supabase.auth.getSession()
       if (!mounted) return
       setSession(data.session ?? null)
       setLoading(false)
-    })
+    }
+
+    void init()
 
     const {
       data: { subscription },
@@ -34,7 +56,13 @@ export function AuthProvider({ children }) {
   }, [])
 
   const signUp = useCallback(async (email, password) => {
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: getAppUrl(),
+      },
+    })
     return { data, error }
   }, [])
 
