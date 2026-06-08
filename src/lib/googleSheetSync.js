@@ -1,12 +1,16 @@
 import { supabase } from './supabase'
 import { parseExpenseCsv } from './csvExpenses'
 
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+
 /** Turn a share/edit link into a CSV export URL. */
 export function normalizeGoogleSheetUrl(input) {
   const raw = String(input || '').trim()
   if (!raw) return null
 
-  if (raw.includes('output=csv') || raw.includes('format=csv')) return raw
+  if (raw.includes('output=csv') || raw.includes('format=csv') || raw.includes('tqx=out:csv')) return raw
 
   const pub = raw.match(/\/spreadsheets\/d\/e\/([^/]+)/)
   if (pub) return `https://docs.google.com/spreadsheets/d/e/${pub[1]}/pub?output=csv`
@@ -20,25 +24,108 @@ export function normalizeGoogleSheetUrl(input) {
   return raw
 }
 
-async function fetchSheetCsv(exportUrl) {
-  const sep = exportUrl.includes('?') ? '&' : '?'
-  const url = `${exportUrl}${sep}t=${Date.now()}`
+/** Try several public CSV export formats for the same sheet. */
+function exportUrlCandidates(sheetInput) {
+  const primary = normalizeGoogleSheetUrl(sheetInput)
+  const candidates = []
+  if (primary) candidates.push(primary)
 
-  const looksLikeHtml = (text) => /<!DOCTYPE html|<html/i.test(text)
+  const id = String(sheetInput || '').match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)?.[1]
+  const pubId = String(sheetInput || '').match(/\/spreadsheets\/d\/e\/([^/]+)/)?.[1]
+  const gid = String(sheetInput || '').match(/[#&?]gid=(\d+)/)?.[1] ?? '0'
 
-  try {
-    const res = await fetch(url)
-    const text = await res.text()
-    if (res.ok && !looksLikeHtml(text)) return text
-  } catch {
-    // fall through to edge function
+  if (pubId) {
+    candidates.push(`https://docs.google.com/spreadsheets/d/e/${pubId}/pub?output=csv`)
+  }
+  if (id) {
+    candidates.push(`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`)
+    candidates.push(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&gid=${gid}`)
   }
 
-  const { data, error } = await supabase.functions.invoke('google-sheet-fetch', { body: { url } })
-  if (error) throw new Error(error.message || 'Could not fetch sheet.')
-  if (data?.error) throw new Error(String(data.error))
-  if (!data?.csv) throw new Error('Empty response from sheet fetch.')
-  return data.csv
+  return [...new Set(candidates)]
+}
+
+const looksLikeHtml = (text) => /<!DOCTYPE html|<html/i.test(text)
+
+async function fetchCsvDirect(url) {
+  const sep = url.includes('?') ? '&' : '?'
+  const res = await fetch(`${url}${sep}t=${Date.now()}`, { mode: 'cors' })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Sheet fetch failed (${res.status}).`)
+  if (looksLikeHtml(text)) {
+    throw new Error(
+      'Sheet is not public. In Google Sheets use Share → Anyone with the link (Viewer), or File → Share → Publish to web.',
+    )
+  }
+  if (!text.trim()) throw new Error('Sheet returned empty data.')
+  return text
+}
+
+async function fetchCsvViaEdgeFunction(url) {
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase URL or API key is missing in .env')
+  }
+
+  const endpoint = `${supabaseUrl.replace(/\/$/, '')}/functions/v1/google-sheet-fetch`
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+    },
+    body: JSON.stringify({ url }),
+  })
+
+  let payload
+  try {
+    payload = await res.json()
+  } catch {
+    throw new Error(
+      `Sheet proxy returned an invalid response (${res.status}). Deploy it with: supabase functions deploy google-sheet-fetch --no-verify-jwt`,
+    )
+  }
+
+  if (!res.ok) {
+    throw new Error(payload?.error || `Sheet proxy failed (${res.status}).`)
+  }
+  if (payload?.error) throw new Error(String(payload.error))
+  if (!payload?.csv) throw new Error('Sheet proxy returned empty data.')
+  return payload.csv
+}
+
+function edgeFunctionDeployHint() {
+  return 'Deploy the sheet proxy: supabase link && supabase functions deploy google-sheet-fetch --no-verify-jwt'
+}
+
+async function fetchSheetCsv(sheetInput) {
+  const candidates = exportUrlCandidates(sheetInput)
+  let lastDirectError = null
+
+  for (const url of candidates) {
+    try {
+      return await fetchCsvDirect(url)
+    } catch (e) {
+      lastDirectError = e
+    }
+  }
+
+  for (const url of candidates) {
+    try {
+      return await fetchCsvViaEdgeFunction(url)
+    } catch (e) {
+      const msg = String(e?.message || '')
+      if (/failed to send a request|fetch failed|network/i.test(msg)) {
+        throw new Error(
+          `Could not reach the sheet proxy Edge Function. ${edgeFunctionDeployHint()} Also ensure the sheet is shared publicly.`,
+        )
+      }
+      lastDirectError = e
+    }
+  }
+
+  throw lastDirectError || new Error(`Could not read the Google Sheet. ${edgeFunctionDeployHint()}`)
 }
 
 function rowKey(lineNum, row) {
@@ -77,7 +164,7 @@ export async function syncExpensesFromSheet(settings) {
   const paymentMethods = settings.payment_methods || []
 
   try {
-    const csv = await fetchSheetCsv(exportUrl)
+    const csv = await fetchSheetCsv(settings.sheet_sync_url)
     const { valid, invalid } = parseExpenseCsv(csv, {
       categories,
       paymentMethods,
