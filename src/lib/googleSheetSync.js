@@ -87,8 +87,13 @@ async function fetchCsvViaEdgeFunction(url) {
     )
   }
 
+  if (res.status === 404 || payload?.code === 'NOT_FOUND') {
+    throw new Error(
+      'Sheet proxy Edge Function is not deployed. Run: supabase functions deploy google-sheet-fetch --no-verify-jwt',
+    )
+  }
   if (!res.ok) {
-    throw new Error(payload?.error || `Sheet proxy failed (${res.status}).`)
+    throw new Error(payload?.error || payload?.message || `Sheet proxy failed (${res.status}).`)
   }
   if (payload?.error) throw new Error(String(payload.error))
   if (!payload?.csv) throw new Error('Sheet proxy returned empty data.')
