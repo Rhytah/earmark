@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.google-sheet-fetch]
 verify_jwt = false
+
+[functions.receipt-scanner]
+verify_jwt = false

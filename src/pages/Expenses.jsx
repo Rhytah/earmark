@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo } from 'react'
-import { Trash2, Plus, X, FileSpreadsheet, Paperclip, Receipt } from 'lucide-react'
+import { Trash2, Plus, X, FileSpreadsheet, Paperclip, Receipt, Camera } from 'lucide-react'
 import { useAppSettings } from '../context/useAppSettings'
 import { useExpenses } from '../lib/hooks'
 import { parseExpensePasteMode } from '../lib/ledgerPaste'
@@ -11,6 +11,7 @@ import {
 } from '../lib/expenseReceipts'
 import { fmt, getCurrentMonth } from '../lib/constants'
 import ExpenseSheetSync from '../components/ExpenseSheetSync'
+import ScanReceiptModal from '../components/ScanReceiptModal'
 import { Card, Btn, Spinner, EmptyState, MonthPicker } from '../components/UI'
 import { format, parseISO } from 'date-fns'
 
@@ -406,6 +407,7 @@ export default function Expenses() {
   const [month, setMonth] = useState(getCurrentMonth())
   const { expenses, loading, addExpense, addExpensesBulk, deleteExpense, refetch } = useExpenses(month)
   const [showForm, setShowForm] = useState(false)
+  const [showScan, setShowScan] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
   const [deleting, setDeleting] = useState(null)
 
@@ -448,6 +450,9 @@ export default function Expenses() {
           <Btn onClick={() => setShowForm(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             <Plus size={15} /> Add
           </Btn>
+          <Btn variant="ghost" onClick={() => setShowScan(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <Camera size={15} /> Scan
+          </Btn>
           <Btn variant="ghost" onClick={() => setShowCsv(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             <FileSpreadsheet size={15} /> CSV
           </Btn>
@@ -462,6 +467,18 @@ export default function Expenses() {
           paymentMethods={paymentMethods}
           onImport={(rows) => addExpensesBulk(rows)}
           onClose={() => setShowCsv(false)}
+        />
+      )}
+
+      {showScan && (
+        <ScanReceiptModal
+          categories={categories}
+          paymentMethods={paymentMethods}
+          onAdd={addExpense}
+          onClose={() => {
+            setShowScan(false)
+            void refetch()
+          }}
         />
       )}
 

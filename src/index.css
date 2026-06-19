@@ -705,6 +705,64 @@ body {
   border-color: var(--border2);
 }
 
+.receipt-scan-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.receipt-scan-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.receipt-scan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border2);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  width: 100%;
+  justify-content: center;
+}
+
+.receipt-scan-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.receipt-scan-preview {
+  margin-top: 12px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  max-height: 240px;
+}
+
+.receipt-scan-preview img {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+.receipt-scan-pdf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* Modal overlay safe areas */
 .modal-backdrop {
   position: fixed;
