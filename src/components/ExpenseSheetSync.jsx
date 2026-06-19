@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, RefreshCw } from 'lucide-react'
+import { Download, ExternalLink, RefreshCw } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { useAppSettings } from '../context/useAppSettings'
 import { syncExpensesFromSheet } from '../lib/googleSheetSync'
+import { downloadExpenseSheetTemplate, buildExpenseSheetTemplateCsv } from '../lib/sheetTemplate'
 import { Btn, Card, SectionTitle } from './UI'
 
 const INTERVALS = [
@@ -71,16 +72,49 @@ export default function ExpenseSheetSync() {
     ? draft.sheet_sync_url.replace('/pub?', '/edit?').split('/export')[0]
     : draft.sheet_sync_url
 
+  const templatePreview = buildExpenseSheetTemplateCsv({
+    categories: (settings.budget || []).map((b) => b.category),
+    paymentMethods: settings.payment_methods || [],
+  })
+
   return (
     <Card style={{ marginBottom: '1.25rem' }}>
       <SectionTitle>Google Sheet</SectionTitle>
       <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
-        Link a Google Sheet or Excel file saved in Google Drive. Edits sync into expenses automatically when live sync is
-        on. Share the sheet as <strong>Anyone with the link can view</strong>.
+        Use a <strong>dedicated tab</strong> with one flat expense table (no side summaries). Share the sheet as{' '}
+        <strong>Anyone with the link can view</strong>, then paste the tab URL including <code>#gid=…</code> if needed.
       </p>
-      <p style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace', marginBottom: 12 }}>
-        date,category,description,amount,payment_method
-      </p>
+      <details open style={{ marginBottom: 12, fontSize: 12, color: 'var(--muted)' }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--text)' }}>Recommended template</summary>
+        <p style={{ marginTop: 8, lineHeight: 1.5 }}>
+          Row 1 = headers exactly as below. <strong>category</strong> must match your Settings budget names. Dates:
+          YYYY-MM-DD (best) or June 1, 2026. Amounts: numbers only (commas OK).
+        </p>
+        <pre
+          style={{
+            marginTop: 8,
+            padding: 10,
+            background: 'var(--surface-solid)',
+            borderRadius: 'var(--radius-sm)',
+            overflow: 'auto',
+            fontSize: 11,
+            lineHeight: 1.4,
+          }}
+        >
+          {templatePreview}
+        </pre>
+        <Btn
+          variant="ghost"
+          onClick={() => downloadExpenseSheetTemplate(settings)}
+          style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}
+        >
+          <Download size={14} /> Download CSV template
+        </Btn>
+        <p style={{ marginTop: 10, lineHeight: 1.5 }}>
+          In Google Sheets: <strong>File → Import → Upload</strong> the CSV, or paste the table into a new tab named{' '}
+          <em>Expenses</em>. Copy that tab&apos;s link for sync below.
+        </p>
+      </details>
       <div style={{ display: 'grid', gap: 12 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
           <input

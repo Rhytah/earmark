@@ -1,5 +1,4 @@
-import { format, parse, isValid } from 'date-fns'
-import { parseAmount, parseCsvText, parseExpenseCsv, parseIsoOrDmy } from './csvExpenses'
+import { parseAmount, parseCsvText, parseExpenseCsv, parseExpenseDate } from './csvExpenses'
 
 function splitTabs(line) {
   return line.split(/\t/).map((c) => c.trim())
@@ -30,14 +29,7 @@ function findCol(headers, ...names) {
 }
 
 function parseProseDate(cell) {
-  const t = String(cell ?? '').trim()
-  if (!t) return null
-  if (parseIsoOrDmy(t)) return parseIsoOrDmy(t)
-  for (const fmtStr of ['MMMM d, yyyy', 'MMM d, yyyy']) {
-    const d = parse(t, fmtStr, new Date())
-    if (isValid(d)) return format(d, 'yyyy-MM-dd')
-  }
-  return null
+  return parseExpenseDate(cell)
 }
 
 /** Map “for” text to a budget category using exact match, substring, then heuristics. */

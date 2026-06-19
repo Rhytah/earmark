@@ -1,3 +1,5 @@
+import { format, parse, isValid } from 'date-fns'
+
 /** Parse CSV with comma separator and "double-quote" escaping. */
 export function parseCsvText(text) {
   const raw = text.replace(/^\uFEFF/, '')
@@ -108,6 +110,30 @@ export function parseIsoOrDmy(dateStr) {
   return null
 }
 
+/** Google Sheets serial date (days since 1899-12-30) or prose dates like "June 1, 2026". */
+export function parseExpenseDate(dateStr) {
+  const s = String(dateStr ?? '').trim()
+  if (!s) return null
+
+  const iso = parseIsoOrDmy(s)
+  if (iso) return iso
+
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    const n = Math.floor(Number(s))
+    if (n >= 1 && n <= 100000) {
+      const d = new Date(Date.UTC(1899, 11, 30 + n))
+      if (isValid(d)) return format(d, 'yyyy-MM-dd')
+    }
+  }
+
+  for (const fmtStr of ['MMMM d, yyyy', 'MMM d, yyyy', 'd MMMM yyyy', 'd MMM yyyy']) {
+    const d = parse(s, fmtStr, new Date())
+    if (isValid(d)) return format(d, 'yyyy-MM-dd')
+  }
+
+  return null
+}
+
 export function parseAmount(s) {
   const t = String(s ?? '').trim()
   if (!t) return NaN
@@ -175,7 +201,7 @@ export function parseExpenseCsv(csvText, { categories, paymentMethods, allowUnkn
       return line[i] != null ? String(line[i]) : ''
     }
 
-    const date = parseIsoOrDmy(get('date'))
+    const date = parseExpenseDate(get('date'))
     let categoryResult = matchCategory(get('category'), categories)
     const rawCategory = get('category').trim()
     if (!categoryResult.ok && allowUnknownCategories && rawCategory) {
@@ -187,7 +213,7 @@ export function parseExpenseCsv(csvText, { categories, paymentMethods, allowUnkn
 
     const lineNum = r + 1
     const reasons = []
-    if (!date) reasons.push('invalid or missing date (use YYYY-MM-DD)')
+    if (!date) reasons.push('invalid or missing date (use YYYY-MM-DD or June 1, 2026)')
     if (!categoryResult.ok) reasons.push(categoryResult.hint)
     if (!Number.isFinite(amount) || amount <= 0) reasons.push('invalid amount')
 

@@ -260,6 +260,7 @@ export async function syncExpensesFromSheet(settings) {
     const { valid, invalid } = parseExpensePaste(csv, {
       categories,
       paymentMethods,
+      allowUnknownCategories: true,
     })
 
     const { error: delErr } = await supabase.from('expenses').delete().eq('source', 'google_sheet')
