@@ -31,7 +31,7 @@ export const BADGE_DEFINITIONS = [
     id: 'super_saver',
     icon: '🌱',
     label: 'Super Saver',
-    hint: 'Retain 15%+ of salary',
+    hint: 'Retain 15%+ of income',
     evaluate({ metrics }) {
       const rate = metrics.savingsRate ?? 0
       return { unlocked: rate >= 15, progress: Math.min(100, Math.round((rate / 15) * 100)) }

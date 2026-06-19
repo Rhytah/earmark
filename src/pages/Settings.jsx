@@ -12,6 +12,7 @@ import {
   slugifyTrackerId,
 } from '../lib/trackers'
 import { Btn, Card, SectionTitle, Spinner } from '../components/UI'
+import { createExtraIncomeRow, incomeSummary } from '../lib/income'
 import {
   DAY_LABELS,
   notificationPermission,
@@ -64,6 +65,28 @@ export default function Settings() {
 
   const removeBudgetRow = (i) => {
     setDraft((d) => ({ ...d, budget: d.budget.filter((_, j) => j !== i) }))
+  }
+
+  const addExtraIncomeRow = () => {
+    setDraft((d) => ({
+      ...d,
+      extra_income: [...(d.extra_income || []), createExtraIncomeRow(d.extra_income || [])],
+    }))
+  }
+
+  const updateExtraIncomeRow = (i, field, value) => {
+    setDraft((d) => {
+      const extra_income = [...(d.extra_income || [])]
+      extra_income[i] = { ...extra_income[i], [field]: value }
+      return { ...d, extra_income }
+    })
+  }
+
+  const removeExtraIncomeRow = (i) => {
+    setDraft((d) => ({
+      ...d,
+      extra_income: (d.extra_income || []).filter((_, j) => j !== i),
+    }))
   }
 
   const updateGoal = (i, field, value) => {
@@ -153,6 +176,11 @@ export default function Settings() {
     const { error } = await saveSettings({
       ...draft,
       salary: Number(draft.salary),
+      extra_income: (draft.extra_income || []).map((row) => ({
+        id: row.id,
+        label: String(row.label).trim(),
+        amount: Math.max(0, Number(row.amount) || 0),
+      })).filter((row) => row.label),
       emergency_fund_target: Number(draft.emergency_fund_target),
       trackers: normalizeTrackers(draft.trackers, draft).map((t) => ({
         ...t,
@@ -250,6 +278,7 @@ export default function Settings() {
 
   const fieldStyle = { display: 'flex', flexDirection: 'column', gap: 6 }
   const labelStyle = { fontSize: 12, color: 'var(--muted)', fontWeight: 600 }
+  const draftIncome = incomeSummary(draft)
 
   return (
     <div className="page">
@@ -270,6 +299,9 @@ export default function Settings() {
 
       <Card style={{ marginBottom: '1rem' }}>
         <SectionTitle>App & income</SectionTitle>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
+          Set your primary salary plus any other regular monthly inflows. Dashboard and reports use the combined total.
+        </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           <div style={fieldStyle}>
             <label style={labelStyle}>App name (nav & tab title)</label>
@@ -279,9 +311,10 @@ export default function Settings() {
             />
           </div>
           <div style={fieldStyle}>
-            <label style={labelStyle}>Monthly salary</label>
+            <label style={labelStyle}>Primary monthly salary</label>
             <input
               type="number"
+              min={0}
               value={draft.salary}
               onChange={(e) => setDraft((d) => ({ ...d, salary: e.target.value }))}
             />
@@ -294,6 +327,70 @@ export default function Settings() {
               onChange={(e) => setDraft((d) => ({ ...d, emergency_fund_target: e.target.value }))}
             />
           </div>
+        </div>
+
+        <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: 10 }}>
+            <SectionTitle style={{ marginBottom: 0 }}>Extra income sources</SectionTitle>
+            <Btn variant="ghost" size="sm" onClick={addExtraIncomeRow} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={16} /> Add source
+            </Btn>
+          </div>
+          {(draft.extra_income || []).length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
+              No extra sources yet — add freelance, rent, dividends, or other regular inflows.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {(draft.extra_income || []).map((row, i) => (
+                <div
+                  key={row.id || i}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr minmax(120px, 160px) auto',
+                    gap: 10,
+                    alignItems: 'end',
+                  }}
+                >
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Source name</label>
+                    <input
+                      value={row.label}
+                      onChange={(e) => updateExtraIncomeRow(i, 'label', e.target.value)}
+                      placeholder="Freelance, rent, bonus…"
+                    />
+                  </div>
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Monthly amount</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={row.amount}
+                      onChange={(e) => updateExtraIncomeRow(i, 'amount', e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeExtraIncomeRow(i)}
+                    style={{ background: 'none', color: 'var(--muted)', padding: 10 }}
+                    aria-label="Remove income source"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 14, marginBottom: 0 }}>
+            Total monthly income:{' '}
+            <strong style={{ color: 'var(--text)' }}>UGX {fmt(draftIncome.total)}</strong>
+            {draftIncome.extraTotal > 0 && (
+              <span>
+                {' '}
+                (salary {fmt(draftIncome.salary)} + extra {fmt(draftIncome.extraTotal)})
+              </span>
+            )}
+          </p>
         </div>
       </Card>
 

@@ -2,6 +2,7 @@
 export const DEFAULT_APP_SETTINGS = {
   app_title: 'My Budget',
   salary: 3_000_000,
+  extra_income: [],
   budget: [
     { category: 'Groceries', amount: 400_000, type: 'variable', color: '#ff8c5a' },
     { category: 'Housing & utilities', amount: 800_000, type: 'fixed', color: '#3dbe7a' },

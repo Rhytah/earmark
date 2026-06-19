@@ -77,5 +77,8 @@ alter table public.app_settings
     "last_sent_at": null
   }'::jsonb;
 
+alter table public.app_settings
+  add column if not exists extra_income jsonb not null default '[]'::jsonb;
+
 -- Refresh PostgREST schema cache
 notify pgrst, 'reload schema';

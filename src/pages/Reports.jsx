@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAx
 import { useAppSettings } from '../context/useAppSettings'
 import { useExpensesRange, useInvestmentsRange, useSavingsSnapshot } from '../lib/hooks'
 import { fmt, getCurrentMonth } from '../lib/constants'
+import { totalMonthlyIncome } from '../lib/income'
 import { Card, MetricCard, SectionTitle, Spinner, MonthPicker } from '../components/UI'
 
 const PROJECT_MONTHS = 3
@@ -22,7 +23,8 @@ function addMonths(monthKey, plus) {
 
 export default function Reports() {
   const { settings } = useAppSettings()
-  const { salary, budget, investments_category, emergency_category } = settings
+  const { budget, investments_category, emergency_category } = settings
+  const monthlyIncome = totalMonthlyIncome(settings)
   const [month, setMonth] = useState(getCurrentMonth())
   const [monthsBack, setMonthsBack] = useState(12)
   const [rangeMode, setRangeMode] = useState('rolling')
@@ -92,7 +94,7 @@ export default function Reports() {
       projectionData.push({
         month: monthLabel(nextMonth),
         projectedSpend: projectedFromLastMonth,
-        projectedSavings: salary - projectedFromLastMonth,
+        projectedSavings: monthlyIncome - projectedFromLastMonth,
         baseline: latestSpend,
       })
     }
@@ -100,9 +102,9 @@ export default function Reports() {
     const lastMonthByCategory = monthCategoryTotalsMap[baseMonth] || {}
     const envelopeRatios = { needs: 0.5, wants: 0.3, savings: 0.2 }
     const envelopeTotals = {
-      needs: Math.round(salary * envelopeRatios.needs),
-      wants: Math.round(salary * envelopeRatios.wants),
-      savings: Math.round(salary * envelopeRatios.savings),
+      needs: Math.round(monthlyIncome * envelopeRatios.needs),
+      wants: Math.round(monthlyIncome * envelopeRatios.wants),
+      savings: Math.round(monthlyIncome * envelopeRatios.savings),
     }
     const roundToThousand = (value) => Math.round(value / 1000) * 1000
 
@@ -245,7 +247,7 @@ export default function Reports() {
 
     return {
       totalSpent,
-      totalEarnings: salary * Math.max(months.length, 1),
+      totalEarnings: monthlyIncome * Math.max(months.length, 1),
       incomeAllocated: totalSpent + investmentOutflow,
       topCategory,
       byCategory,
@@ -254,7 +256,7 @@ export default function Reports() {
       baseMonth,
       lastMonthSpend,
       projectedFromLastMonth,
-      projectedNextSavings: salary - projectedFromLastMonth,
+      projectedNextSavings: monthlyIncome - projectedFromLastMonth,
       recentTrendPct,
       planningRows,
       envelopeTotals,
@@ -270,7 +272,7 @@ export default function Reports() {
       emergencyFunded: byCategoryMap[emergency_category] || 0,
       monthCount: months.length || 1,
     }
-  }, [expenses, salary, budget, snapshots, investments_category, emergency_category, investmentTransactions, month])
+  }, [expenses, monthlyIncome, budget, snapshots, investments_category, emergency_category, investmentTransactions, month])
 
   const pieData = report.byCategory.slice(0, 6).map((c, i) => ({
     name: c.category,

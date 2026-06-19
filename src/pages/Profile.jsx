@@ -3,6 +3,7 @@ import { useAppSettings } from '../context/useAppSettings'
 import { useExpensesHistory } from '../lib/hooks'
 import { getCurrentMonth } from '../lib/constants'
 import { buildSpendingProfile } from '../lib/spendingProfile'
+import { totalMonthlyIncome } from '../lib/income'
 import { useSpendingGamification } from '../lib/useSpendingGamification'
 import SpendingProfileGame from '../components/SpendingProfileGame'
 import ProfileGamificationDetails from '../components/ProfileGamificationDetails'
@@ -11,13 +12,14 @@ import { Spinner } from '../components/UI'
 
 export default function Profile() {
   const { settings } = useAppSettings()
-  const { salary, budget } = settings
+  const { budget } = settings
+  const monthlyIncome = totalMonthlyIncome(settings)
   const month = getCurrentMonth()
   const { expenses, loading } = useExpensesHistory(6, month)
 
   const spendingProfile = useMemo(
-    () => buildSpendingProfile(expenses, { salary, budget }),
-    [expenses, salary, budget],
+    () => buildSpendingProfile(expenses, { salary: monthlyIncome, budget }),
+    [expenses, monthlyIncome, budget],
   )
 
   const spendingGame = useSpendingGamification(spendingProfile)

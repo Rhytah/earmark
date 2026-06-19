@@ -52,7 +52,7 @@ const ARCHETYPES = {
   },
   stretched: {
     label: 'Income-stretched',
-    summary: 'Spending is close to or above your salary — little room left each month.',
+    summary: 'Spending is close to or above your income — little room left each month.',
   },
   balanced: {
     label: 'Balanced spender',
@@ -126,7 +126,7 @@ export function buildSpendingGamification(profile) {
   }
   if ((metrics.savingsRate ?? 0) < 10 && metrics.savingsRate != null) {
     quests.push({
-      text: 'Bonus quest: boost salary retained above 10%.',
+      text: 'Bonus quest: boost income retained above 10%.',
       reward: '+50 XP',
       done: false,
     })
@@ -248,7 +248,7 @@ function fmtNum(n) {
 /**
  * Build a spending-habits profile from the user's expense history.
  */
-export function buildSpendingProfile(expenses, { salary, budget = [] }) {
+export function buildSpendingProfile(expenses, { salary: monthlyIncome, budget = [] }) {
   if (!expenses?.length) {
     return {
       hasData: false,
@@ -315,7 +315,7 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
   const avgMonthlySpend = Math.round(total / monthCount)
   const transactionsPerMonth = Math.round(expenses.length / monthCount)
   const avgTransaction = Math.round(total / expenses.length)
-  const savingsRate = salary > 0 ? Math.round(((salary - avgMonthlySpend) / salary) * 100) : null
+  const savingsRate = monthlyIncome > 0 ? Math.round(((monthlyIncome - avgMonthlySpend) / monthlyIncome) * 100) : null
 
   let needsSpend = 0
   let wantsSpend = 0
@@ -409,7 +409,7 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
     lifestyle: wantsShare >= 0.45 ? 3 : wantsShare >= 0.35 ? 1 : 0,
     focused: topCategoryPct >= 35 ? 3 : topCategoryPct >= 28 ? 1 : 0,
     frequent: transactionsPerMonth >= 25 ? 3 : transactionsPerMonth >= 15 ? 1 : 0,
-    stretched: salary > 0 && avgMonthlySpend >= salary * 0.9 ? 3 : avgMonthlySpend >= salary * 0.8 ? 1 : 0,
+    stretched: monthlyIncome > 0 && avgMonthlySpend >= monthlyIncome * 0.9 ? 3 : avgMonthlySpend >= monthlyIncome * 0.8 ? 1 : 0,
     balanced: 0,
   }
 
@@ -437,8 +437,8 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
   if (savingsRate != null) {
     insights.push(
       savingsRate >= 0
-        ? `You retain about ${savingsRate}% of salary after average monthly spend.`
-        : `Average monthly spend exceeds salary by ${Math.abs(savingsRate)}%.`,
+        ? `You retain about ${savingsRate}% of income after average monthly spend.`
+        : `Average monthly spend exceeds income by ${Math.abs(savingsRate)}%.`,
     )
   }
   if (adherenceScore != null) {

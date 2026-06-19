@@ -76,7 +76,7 @@ export default function SpendingProfile({ profile, compact = false }) {
           </div>
           <div>
             <span className="spending-profile-stat-value">{metrics.savingsRate != null ? `${metrics.savingsRate}%` : '—'}</span>
-            <span className="spending-profile-stat-label">salary retained</span>
+            <span className="spending-profile-stat-label">income retained</span>
           </div>
           <div>
             <span className="spending-profile-stat-value">{metrics.transactionsPerMonth}</span>

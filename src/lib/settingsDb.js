@@ -1,4 +1,5 @@
 import { DEFAULT_APP_SETTINGS } from './constants'
+import { normalizeExtraIncome } from './income'
 import { gymLegacyFromTrackers, normalizeTrackers } from './trackers'
 import { normalizeTrackingReminders } from './trackingReminders'
 
@@ -42,6 +43,7 @@ export function rowToSettings(row) {
   return {
     app_title: row.app_title ?? DEFAULT_APP_SETTINGS.app_title,
     salary: Number(row.salary) || DEFAULT_APP_SETTINGS.salary,
+    extra_income: normalizeExtraIncome(row.extra_income),
     budget: Array.isArray(row.budget) ? row.budget : DEFAULT_APP_SETTINGS.budget,
     payment_methods: Array.isArray(row.payment_methods)
       ? row.payment_methods
@@ -74,6 +76,7 @@ export function settingsToRow(s, userId) {
     user_id: userId,
     app_title: s.app_title,
     salary: s.salary,
+    extra_income: normalizeExtraIncome(s.extra_income),
     budget: s.budget,
     payment_methods: s.payment_methods,
     investment_goals: s.investment_goals,
@@ -107,6 +110,7 @@ export function mergeDefaults(partial) {
       partial.investment_goals?.length ? partial.investment_goals : DEFAULT_APP_SETTINGS.investment_goals,
     ),
     trackers: normalizeTrackers(partial.trackers, partial),
+    extra_income: normalizeExtraIncome(partial.extra_income ?? DEFAULT_APP_SETTINGS.extra_income),
     gamification: normalizeGamification(partial.gamification ?? DEFAULT_APP_SETTINGS.gamification),
     tracking_reminders: normalizeTrackingReminders(
       partial.tracking_reminders ?? DEFAULT_APP_SETTINGS.tracking_reminders,

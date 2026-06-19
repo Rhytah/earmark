@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { useAppSettings } from '../context/useAppSettings'
 import { useExpenses, useInvestments, useTrackerLogsBatch, useExpensesHistory } from '../lib/hooks'
 import { budgetLineAmount, fmt, getCurrentMonth } from '../lib/constants'
+import { incomeSummary } from '../lib/income'
 import { computeTrackerSummary, enabledTrackers, getTrackerIcon } from '../lib/trackers'
 import { buildSpendingProfile } from '../lib/spendingProfile'
 import { useSpendingGamification } from '../lib/useSpendingGamification'
@@ -36,7 +37,9 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function Dashboard() {
   const { settings } = useAppSettings()
-  const { salary, budget } = settings
+  const { budget } = settings
+  const income = useMemo(() => incomeSummary(settings), [settings])
+  const monthlyIncome = income.total
   const [month, setMonth] = useState(getCurrentMonth())
   const trackers = useMemo(() => enabledTrackers(settings.trackers), [settings.trackers])
   const trackerIds = useMemo(() => trackers.map((t) => t.id), [trackers])
@@ -63,7 +66,7 @@ export default function Dashboard() {
     const investedOutflow = transactions
       .filter((t) => ['buy', 'deposit'].includes(t.tx_type))
       .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0)
-    const remaining = salary - totalSpend - investedOutflow
+    const remaining = monthlyIncome - totalSpend - investedOutflow
 
     const spendMap = {}
     expenses.forEach((e) => {
@@ -102,7 +105,7 @@ export default function Dashboard() {
     }))
 
     return { totalSpend, remaining, byCategory, chartData, otherSpend }
-  }, [expenses, salary, budget, transactions])
+  }, [expenses, monthlyIncome, budget, transactions])
 
   const typeColor = { fixed: 'var(--teal)', variable: 'var(--amber)', savings: 'var(--green)' }
   const investedThisMonth = transactions
@@ -111,8 +114,8 @@ export default function Dashboard() {
   const incomeUsed = totalSpend + investedThisMonth
 
   const spendingProfile = useMemo(
-    () => buildSpendingProfile(profileExpenses, { salary, budget }),
-    [profileExpenses, salary, budget],
+    () => buildSpendingProfile(profileExpenses, { salary: monthlyIncome, budget }),
+    [profileExpenses, monthlyIncome, budget],
   )
 
   const spendingGame = useSpendingGamification(spendingProfile)
@@ -132,16 +135,25 @@ export default function Dashboard() {
       <TrackReminderBanner />
 
       <div className="metric-grid">
-        <MetricCard label="Monthly salary" value={salary} />
-        <MetricCard label="Total spent" value={totalSpend} color={totalSpend > salary * 0.8 ? 'var(--red)' : 'var(--text)'} />
+        <MetricCard label="Primary salary" value={income.salary} />
+        {income.extraTotal > 0 && (
+          <MetricCard
+            label="Extra income"
+            value={income.extraTotal}
+            sub={`${income.extraSources.length} source${income.extraSources.length === 1 ? '' : 's'}`}
+            color="var(--green)"
+          />
+        )}
+        <MetricCard label="Total income" value={monthlyIncome} color="var(--green)" />
+        <MetricCard label="Total spent" value={totalSpend} color={totalSpend > monthlyIncome * 0.8 ? 'var(--red)' : 'var(--text)'} />
         <MetricCard label="Remaining" value={remaining} color={remaining < 0 ? 'var(--red)' : 'var(--green)'} />
         <MetricCard label="Invested (month)" value={investedThisMonth} color="var(--accent)" />
         <MetricCard
           label="% income allocated"
-          value={salary > 0 ? Math.round((incomeUsed / salary) * 100) : 0}
+          value={monthlyIncome > 0 ? Math.round((incomeUsed / monthlyIncome) * 100) : 0}
           prefix=""
-          sub={`of UGX ${fmt(salary)}`}
-          color={incomeUsed > salary ? 'var(--red)' : 'var(--text)'}
+          sub={`of UGX ${fmt(monthlyIncome)}`}
+          color={incomeUsed > monthlyIncome ? 'var(--red)' : 'var(--text)'}
         />
       </div>
 
@@ -233,13 +245,23 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Salary progress bar */}
+      {/* Income progress bar */}
       <Card style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-          <span style={{ color: 'var(--muted)' }}>Salary used</span>
-          <span style={{ fontWeight: 600 }}>{fmt(incomeUsed)} / {fmt(salary)}</span>
+          <span style={{ color: 'var(--muted)' }}>Income used</span>
+          <span style={{ fontWeight: 600 }}>{fmt(incomeUsed)} / {fmt(monthlyIncome)}</span>
         </div>
-        <ProgressBar value={incomeUsed} max={salary} color="var(--accent)" height={10} />
+        <ProgressBar value={incomeUsed} max={monthlyIncome} color="var(--accent)" height={10} />
+        {income.extraSources.length > 0 && (
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[{ label: 'Salary', amount: income.salary }, ...income.extraSources].map((source) => (
+              <div key={source.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)' }}>
+                <span>{source.label}</span>
+                <span>UGX {fmt(source.amount)}/mo</span>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* Chart */}
