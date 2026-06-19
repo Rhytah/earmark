@@ -52,7 +52,7 @@ export default function Dashboard() {
     [trackers, logsByTracker, month, budget],
   )
 
-  const { totalSpend, remaining, byCategory, chartData } = useMemo(() => {
+  const { totalSpend, remaining, byCategory, chartData, otherSpend } = useMemo(() => {
     const totalSpend = expenses.reduce((s, e) => s + (e.amount || 0), 0)
     const investedOutflow = transactions
       .filter((t) => ['buy', 'deposit'].includes(t.tx_type))
@@ -60,25 +60,42 @@ export default function Dashboard() {
     const remaining = salary - totalSpend - investedOutflow
 
     const spendMap = {}
-    expenses.forEach(e => {
+    expenses.forEach((e) => {
       spendMap[e.category] = (spendMap[e.category] || 0) + e.amount
     })
 
-    const byCategory = budget.map(b => ({
+    const budgetNames = new Set(budget.map((b) => b.category))
+    const otherSpend = Object.entries(spendMap)
+      .filter(([cat]) => !budgetNames.has(cat))
+      .reduce((sum, [, amt]) => sum + amt, 0)
+
+    const byCategory = budget.map((b) => ({
       ...b,
       actual: spendMap[b.category] || 0,
       variance: b.amount - (spendMap[b.category] || 0),
       pct: Math.min(100, Math.round(((spendMap[b.category] || 0) / b.amount) * 100)),
     }))
 
-    const chartData = byCategory.map(b => ({
+    if (otherSpend > 0) {
+      byCategory.push({
+        category: 'Other (not in budget)',
+        amount: 0,
+        type: 'variable',
+        color: 'var(--muted)',
+        actual: otherSpend,
+        variance: -otherSpend,
+        pct: 100,
+      })
+    }
+
+    const chartData = byCategory.map((b) => ({
       name: b.category.split(' ')[0],
       Budget: b.amount,
       Actual: b.actual,
       color: b.color,
     }))
 
-    return { totalSpend, remaining, byCategory, chartData }
+    return { totalSpend, remaining, byCategory, chartData, otherSpend }
   }, [expenses, salary, budget, transactions])
 
   const typeColor = { fixed: 'var(--teal)', variable: 'var(--amber)', savings: 'var(--green)' }
@@ -112,6 +129,25 @@ export default function Dashboard() {
           color={incomeUsed > salary ? 'var(--red)' : 'var(--text)'}
         />
       </div>
+
+      {!loading && expenses.length === 0 && (
+        <Card style={{ marginBottom: '1.5rem', borderColor: 'var(--amber)' }}>
+          <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>
+            No expenses for this month. If you just synced a sheet, use the <strong>month picker</strong> above — imported
+            rows only appear for the month they are dated in.
+          </p>
+        </Card>
+      )}
+
+      {!loading && otherSpend > 0 && (
+        <Card style={{ marginBottom: '1.5rem', borderColor: 'var(--amber)' }}>
+          <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0, lineHeight: 1.5 }}>
+            UGX {fmt(otherSpend)} synced from your sheet uses categories not in Settings → Budget. Rename the{' '}
+            <strong>category</strong> column in your sheet to match your budget names, or see &ldquo;Other (not in
+            budget)&rdquo; below.
+          </p>
+        </Card>
+      )}
 
       {trackers.length > 0 && (
         <Card style={{ marginBottom: '1.5rem' }}>

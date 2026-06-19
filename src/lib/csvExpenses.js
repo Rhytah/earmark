@@ -149,6 +149,11 @@ function matchCategory(raw, categories) {
   if (exact) return { ok: true, value: exact }
   const lower = categories.find((c) => c.toLowerCase() === x.toLowerCase())
   if (lower) return { ok: true, value: lower }
+  const lowerX = x.toLowerCase()
+  for (const c of categories) {
+    const cl = c.toLowerCase()
+    if (lowerX.includes(cl) || cl.includes(lowerX)) return { ok: true, value: c }
+  }
   return {
     ok: false,
     value: null,

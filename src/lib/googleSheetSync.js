@@ -267,20 +267,29 @@ export async function syncExpensesFromSheet(settings) {
     if (delErr) throw delErr
 
     if (valid.length) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('Sign in to sync expenses.')
+
       const rows = valid.map((row, i) => ({
         ...row,
+        user_id: user.id,
         source: 'google_sheet',
         sheet_row_key: rowKey(i + 2, row),
       }))
-      const { error: insErr } = await supabase.from('expenses').insert(rows)
+      const { data: inserted, error: insErr } = await supabase.from('expenses').insert(rows).select('id')
       if (insErr) throw insErr
+      if (!inserted?.length) throw new Error('Sheet rows were not saved. Try signing out and back in.')
     }
 
+    const dates = valid.map((r) => r.date).sort()
+    const dateRange = dates.length ? { min: dates[0], max: dates[dates.length - 1] } : null
     const statusError = invalid.length ? `${invalid.length} row(s) skipped (check dates, amounts, or columns).` : null
     await updateSyncStatus({ count: valid.length, error: statusError })
     window.dispatchEvent(new CustomEvent('earmark:expenses-synced'))
 
-    return { count: valid.length, invalid: invalid.length, error: statusError }
+    return { count: valid.length, invalid: invalid.length, error: statusError, dateRange }
   } catch (e) {
     const msg = e?.message || 'Sheet sync failed.'
     await updateSyncStatus({ count: 0, error: msg })

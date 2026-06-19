@@ -13,6 +13,17 @@ const INTERVALS = [
   { value: 300, label: 'Every 5 minutes' },
 ]
 
+function formatSyncResult(result) {
+  if (result.error && !result.count) return result.error
+  let msg = `Imported ${result.count} expense(s) from your sheet.`
+  if (result.dateRange) {
+    msg += ` Dates: ${result.dateRange.min} → ${result.dateRange.max}.`
+  }
+  if (result.error) msg += ` ${result.error}`
+  else msg += ' Check Dashboard month picker matches your sheet dates.'
+  return msg
+}
+
 export default function ExpenseSheetSync() {
   const { settings, saveSettings, reload } = useAppSettings()
   const [draft, setDraft] = useState({
@@ -71,9 +82,7 @@ export default function ExpenseSheetSync() {
     const result = await syncExpensesFromSheet(merged)
     await reload()
     setSyncing(false)
-    if (result.error && !result.count) setMessage(result.error)
-    else if (result.error) setMessage(`Imported ${result.count} row(s). ${result.error}`)
-    else setMessage(`Imported ${result.count} expense(s) from your sheet.`)
+    setMessage(formatSyncResult(result))
   }
 
   const lastSync = settings.sheet_sync_last_at
