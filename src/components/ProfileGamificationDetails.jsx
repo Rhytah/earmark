@@ -28,7 +28,7 @@ export default function ProfileGamificationDetails({ game }) {
       <Card className="profile-page-panel">
         <SectionTitle>Badges</SectionTitle>
         <p className="profile-page-panel-desc">
-          {game.unlockedBadgeCount} of {game.badges.length} unlocked
+          {game.unlockedBadgeCount} of {game.badges.length} earned · progress updates from your last 6 months of expenses
         </p>
         <div className="profile-page-badges">
           {game.badges.map((badge) => (
@@ -39,7 +39,22 @@ export default function ProfileGamificationDetails({ game }) {
             >
               <span className="profile-page-badge-icon">{badge.icon}</span>
               <span className="profile-page-badge-label">{badge.label}</span>
-              {!badge.unlocked && <span className="profile-page-badge-hint">{badge.hint}</span>}
+              {badge.unlocked && badge.earnedAt && (
+                <span className="profile-page-badge-earned">
+                  Earned {new Date(badge.earnedAt).toLocaleDateString('en-UG', { month: 'short', day: 'numeric' })}
+                </span>
+              )}
+              {!badge.unlocked && (
+                <>
+                  <div className="profile-page-badge-progress">
+                    <div className="profile-page-badge-progress-fill" style={{ width: `${badge.progress ?? 0}%` }} />
+                  </div>
+                  <span className="profile-page-badge-hint">{badge.progress ?? 0}% · {badge.hint}</span>
+                </>
+              )}
+              {badge.unlocked && !badge.currentlyMet && (
+                <span className="profile-page-badge-hint">Earned — criteria not met right now</span>
+              )}
             </div>
           ))}
         </div>

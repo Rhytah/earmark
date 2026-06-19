@@ -1,3 +1,5 @@
+import { evaluateBadges } from './profileBadges'
+
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function monthKey(dateStr) {
@@ -118,50 +120,7 @@ export function buildSpendingGamification(profile) {
   const xpInLevel = Math.round(rawXp % XP_PER_LEVEL)
   const xpToNext = XP_PER_LEVEL
 
-  const badges = [
-    {
-      id: 'budget_boss',
-      icon: '🛡️',
-      label: 'Budget Boss',
-      unlocked: (metrics.adherenceScore ?? 0) >= 75,
-      hint: '75%+ categories on track',
-    },
-    {
-      id: 'super_saver',
-      icon: '🌱',
-      label: 'Super Saver',
-      unlocked: (metrics.savingsRate ?? 0) >= 15,
-      hint: 'Retain 15%+ of salary',
-    },
-    {
-      id: 'data_hero',
-      icon: '📊',
-      label: 'Data Hero',
-      unlocked: metrics.monthCount >= 3 && confidence.level !== 'low',
-      hint: '3+ months of solid data',
-    },
-    {
-      id: 'category_captain',
-      icon: '🏷️',
-      label: 'Tag Master',
-      unlocked: metrics.mappedShare >= 90,
-      hint: '90%+ mapped to budget',
-    },
-    {
-      id: 'weekend_warrior',
-      icon: '🏖️',
-      label: 'Weekend Warrior',
-      unlocked: metrics.weekendShare >= 45,
-      hint: 'Weekend spender extraordinaire',
-    },
-    {
-      id: 'receipt_rookie',
-      icon: '🧾',
-      label: 'Receipt Ready',
-      unlocked: profile.topMerchants?.length >= 3,
-      hint: '3+ merchants tracked',
-    },
-  ]
+  const badges = evaluateBadges(profile)
 
   const overBudget = budgetAdherence?.filter((r) => r.status === 'over').length ?? 0
   const quests = []
@@ -325,6 +284,7 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
   const merchantGroups = {}
   let mappedTotal = 0
   let describedCount = 0
+  let receiptCount = 0
   const unmappedCategories = new Set()
 
   for (const e of expenses) {
@@ -342,6 +302,8 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
 
     const day = new Date(`${e.date}T12:00:00`).getDay()
     if (Number.isFinite(day)) byWeekday[day] += amount
+
+    if (e.receipt_path) receiptCount += 1
 
     const key = normalizeMerchantKey(e.description)
     const label = displayMerchant(e.description)
@@ -535,6 +497,7 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
       topCategoryPct,
       adherenceScore,
       mappedShare: Math.round(mappedShare * 100),
+      receiptCount,
     },
     categoryShares: categoryShares.slice(0, 6),
     weekdayPattern,

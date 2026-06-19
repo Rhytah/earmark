@@ -6,8 +6,10 @@ import { useExpenses, useInvestments, useTrackerLogsBatch, useExpensesHistory } 
 import { budgetLineAmount, fmt, getCurrentMonth } from '../lib/constants'
 import { computeTrackerSummary, enabledTrackers, getTrackerIcon } from '../lib/trackers'
 import { buildSpendingProfile, buildSpendingGamification } from '../lib/spendingProfile'
+import { finalizeGamification } from '../lib/profileBadges'
 import SpendingProfileGame from '../components/SpendingProfileGame'
 import { Card, MetricCard, ProgressBar, SectionTitle, Badge, MonthPicker, Spinner } from '../components/UI'
+import { useAuth } from '../context/useAuth'
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -34,6 +36,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function Dashboard() {
   const { settings } = useAppSettings()
+  const { user } = useAuth()
   const { salary, budget } = settings
   const [month, setMonth] = useState(getCurrentMonth())
   const trackers = useMemo(() => enabledTrackers(settings.trackers), [settings.trackers])
@@ -114,8 +117,8 @@ export default function Dashboard() {
   )
 
   const spendingGame = useMemo(
-    () => buildSpendingGamification(spendingProfile),
-    [spendingProfile],
+    () => finalizeGamification(buildSpendingGamification(spendingProfile), user?.id),
+    [spendingProfile, user?.id],
   )
 
   return (
