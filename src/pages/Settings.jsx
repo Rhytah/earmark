@@ -12,6 +12,12 @@ import {
   slugifyTrackerId,
 } from '../lib/trackers'
 import { Btn, Card, SectionTitle, Spinner } from '../components/UI'
+import {
+  DAY_LABELS,
+  notificationPermission,
+  notificationsSupported,
+  requestNotificationPermission,
+} from '../lib/trackingReminders'
 
 const BUDGET_TYPES = ['fixed', 'variable', 'savings']
 
@@ -32,6 +38,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [message, setMessage] = useState('')
+  const [notifPermission, setNotifPermission] = useState(() => notificationPermission())
 
   useEffect(() => {
     setDraft(cloneSettings(settings))
@@ -170,7 +177,12 @@ export default function Settings() {
     })
     setSaving(false)
     if (error) setMessage(error.message ?? 'Could not save.')
-    else setMessage('Saved successfully.')
+    else {
+      setMessage('Saved successfully.')
+      if (draft.tracking_reminders?.enabled && notificationPermission() === 'default') {
+        await handleEnableNotifications()
+      }
+    }
   }
 
   const resetDraft = () => {
@@ -181,6 +193,32 @@ export default function Settings() {
   const resetToFactory = () => {
     setDraft(cloneSettings(DEFAULT_APP_SETTINGS))
     setMessage('Form reset to generic defaults — press Save to write them to the database.')
+  }
+
+  const updateTrackingReminders = (patch) => {
+    setDraft((d) => ({
+      ...d,
+      tracking_reminders: { ...(d.tracking_reminders || {}), ...patch },
+    }))
+  }
+
+  const toggleReminderDay = (day) => {
+    setDraft((d) => {
+      const current = d.tracking_reminders?.days || [0, 1, 2, 3, 4, 5, 6]
+      const days = current.includes(day) ? current.filter((x) => x !== day) : [...current, day].sort((a, b) => a - b)
+      return {
+        ...d,
+        tracking_reminders: { ...(d.tracking_reminders || {}), days: days.length ? days : [day] },
+      }
+    })
+  }
+
+  const handleEnableNotifications = async () => {
+    const result = await requestNotificationPermission()
+    setNotifPermission(result)
+    if (result === 'granted') setMessage('Notifications enabled.')
+    else if (result === 'denied') setMessage('Notifications blocked — enable them in your browser settings.')
+    else if (result === 'unsupported') setMessage('This browser does not support notifications.')
   }
 
   const handleSyncNow = async () => {
@@ -479,6 +517,88 @@ export default function Settings() {
               </button>
             </div>
           ))}
+        </div>
+      </Card>
+
+      <Card style={{ marginBottom: '1rem' }}>
+        <SectionTitle>Tracking reminders</SectionTitle>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
+          Get a gentle nudge when you haven&apos;t logged an expense today. Browser notifications fire at your chosen
+          time while the app is open, or the next time you open it. You&apos;ll also see a banner on the Dashboard.
+        </p>
+        <div style={{ display: 'grid', gap: 14 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={Boolean(draft.tracking_reminders?.enabled)}
+              onChange={(e) => updateTrackingReminders({ enabled: e.target.checked })}
+            />
+            Remind me to log expenses
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Reminder time</label>
+              <input
+                type="time"
+                value={draft.tracking_reminders?.time || '20:00'}
+                onChange={(e) => updateTrackingReminders({ time: e.target.value })}
+                disabled={!draft.tracking_reminders?.enabled}
+              />
+            </div>
+          </div>
+          <div>
+            <div style={{ ...labelStyle, marginBottom: 8 }}>Reminder days</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {DAY_LABELS.map((label, day) => (
+                <label
+                  key={label}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 13,
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: '1px solid var(--border)',
+                    background: (draft.tracking_reminders?.days || []).includes(day) ? 'var(--accent-dim)' : 'transparent',
+                    cursor: draft.tracking_reminders?.enabled ? 'pointer' : 'not-allowed',
+                    opacity: draft.tracking_reminders?.enabled ? 1 : 0.55,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={(draft.tracking_reminders?.days || []).includes(day)}
+                    onChange={() => toggleReminderDay(day)}
+                    disabled={!draft.tracking_reminders?.enabled}
+                    style={{ accentColor: 'var(--accent)' }}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+            <Btn
+              variant="ghost"
+              size="sm"
+              onClick={() => void handleEnableNotifications()}
+              disabled={!notificationsSupported()}
+            >
+              Allow browser notifications
+            </Btn>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+              Status:{' '}
+              <strong style={{ color: 'var(--text)' }}>
+                {!notificationsSupported()
+                  ? 'Not supported'
+                  : notifPermission === 'granted'
+                    ? 'Allowed'
+                    : notifPermission === 'denied'
+                      ? 'Blocked'
+                      : 'Not asked yet'}
+              </strong>
+            </span>
+          </div>
         </div>
       </Card>
 

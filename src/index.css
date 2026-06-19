@@ -1638,6 +1638,62 @@ body {
   border-radius: 16px;
 }
 
+.track-reminder-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  border-color: rgba(107, 70, 193, 0.25) !important;
+  background: rgba(107, 70, 193, 0.08);
+}
+
+.track-reminder-banner-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.track-reminder-banner-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.track-reminder-banner-body strong {
+  display: block;
+  font-size: 0.9375rem;
+  margin-bottom: 0.25rem;
+}
+
+.track-reminder-banner-body p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.track-reminder-banner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.55rem 0.875rem;
+  border-radius: 12px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(135deg, #6b46f1, #7c3aed);
+  white-space: nowrap;
+}
+
+.track-reminder-banner-link:hover {
+  opacity: 0.92;
+}
+
 /* Modal overlay safe areas */
 .modal-backdrop {
   position: fixed;

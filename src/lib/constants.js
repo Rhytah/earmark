@@ -37,6 +37,12 @@ export const DEFAULT_APP_SETTINGS = {
     earned_badges: {},
     updated_at: null,
   },
+  tracking_reminders: {
+    enabled: false,
+    time: '20:00',
+    days: [0, 1, 2, 3, 4, 5, 6],
+    last_sent_at: null,
+  },
 }
 
 export function budgetLineAmount(budget, categoryName) {

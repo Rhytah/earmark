@@ -16,6 +16,7 @@ import Settings from './pages/Settings'
 import Login from './pages/Login'
 import { Spinner } from './components/UI'
 import { useGoogleSheetSync } from './lib/useGoogleSheetSync'
+import TrackingReminderRunner from './components/TrackingReminderRunner'
 
 import './index.css'
 
@@ -48,6 +49,7 @@ function AppRoutes({ theme, onToggleTheme }) {
   return (
     <SettingsProvider>
       <GoogleSheetSyncRunner />
+      <TrackingReminderRunner />
       <div className="app-shell">
         <Nav theme={theme} onToggleTheme={onToggleTheme} />
         <main className="main-content">

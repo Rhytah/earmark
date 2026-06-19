@@ -8,6 +8,7 @@ import { computeTrackerSummary, enabledTrackers, getTrackerIcon } from '../lib/t
 import { buildSpendingProfile } from '../lib/spendingProfile'
 import { useSpendingGamification } from '../lib/useSpendingGamification'
 import SpendingProfileGame from '../components/SpendingProfileGame'
+import TrackReminderBanner from '../components/TrackReminderBanner'
 import { Card, MetricCard, ProgressBar, SectionTitle, Badge, MonthPicker, Spinner } from '../components/UI'
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -127,6 +128,8 @@ export default function Dashboard() {
           <MonthPicker value={month} onChange={setMonth} />
         </div>
       </header>
+
+      <TrackReminderBanner />
 
       <div className="metric-grid">
         <MetricCard label="Monthly salary" value={salary} />

@@ -1,5 +1,6 @@
 import { DEFAULT_APP_SETTINGS } from './constants'
 import { gymLegacyFromTrackers, normalizeTrackers } from './trackers'
+import { normalizeTrackingReminders } from './trackingReminders'
 
 export function normalizeGamification(raw) {
   if (!raw || typeof raw !== 'object') {
@@ -62,6 +63,7 @@ export function rowToSettings(row) {
     sheet_sync_last_error: row.sheet_sync_last_error ?? null,
     sheet_sync_last_count: Number(row.sheet_sync_last_count) || 0,
     gamification: normalizeGamification(row.gamification),
+    tracking_reminders: normalizeTrackingReminders(row.tracking_reminders),
   }
 }
 
@@ -89,6 +91,7 @@ export function settingsToRow(s, userId) {
     sheet_sync_last_error: s.sheet_sync_last_error ?? null,
     sheet_sync_last_count: Number(s.sheet_sync_last_count) || 0,
     gamification: normalizeGamification(s.gamification),
+    tracking_reminders: normalizeTrackingReminders(s.tracking_reminders),
   }
 }
 
@@ -105,5 +108,8 @@ export function mergeDefaults(partial) {
     ),
     trackers: normalizeTrackers(partial.trackers, partial),
     gamification: normalizeGamification(partial.gamification ?? DEFAULT_APP_SETTINGS.gamification),
+    tracking_reminders: normalizeTrackingReminders(
+      partial.tracking_reminders ?? DEFAULT_APP_SETTINGS.tracking_reminders,
+    ),
   }
 }
