@@ -10,7 +10,18 @@ function bucketForType(type) {
   return 'savings'
 }
 
-function normalizeMerchant(description) {
+function normalizeMerchantKey(description) {
+  const raw = String(description || '').trim()
+  if (!raw || /^imported$/i.test(raw)) return null
+  return raw
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 48)
+}
+
+function displayMerchant(description) {
   const raw = String(description || '').trim()
   if (!raw || /^imported$/i.test(raw)) return null
   return raw.replace(/\s+/g, ' ').slice(0, 48)
@@ -47,6 +58,90 @@ const ARCHETYPES = {
   },
 }
 
+function computeConfidence({ expenseCount, monthCount, mappedShare, hasDescriptions }) {
+  let score = 0
+  if (expenseCount >= 60) score += 35
+  else if (expenseCount >= 30) score += 25
+  else if (expenseCount >= 12) score += 15
+  else score += 5
+
+  if (monthCount >= 6) score += 35
+  else if (monthCount >= 3) score += 25
+  else if (monthCount >= 2) score += 15
+  else score += 5
+
+  if (mappedShare >= 0.9) score += 20
+  else if (mappedShare >= 0.75) score += 12
+  else if (mappedShare >= 0.5) score += 6
+
+  if (hasDescriptions >= 0.7) score += 10
+  else if (hasDescriptions >= 0.4) score += 5
+
+  if (score >= 75) return { level: 'high', label: 'High confidence', score }
+  if (score >= 45) return { level: 'medium', label: 'Medium confidence', score }
+  return { level: 'low', label: 'Low confidence', score }
+}
+
+function rollingCategoryTrends(byMonthCategory, months) {
+  if (months.length < 4) return []
+  const recent = months.slice(-3)
+  const prior = months.slice(-6, -3)
+  if (!prior.length) return []
+
+  const categories = new Set()
+  for (const m of [...recent, ...prior]) {
+    Object.keys(byMonthCategory[m] || {}).forEach((c) => categories.add(c))
+  }
+
+  const avg = (keys, cat) => {
+    const vals = keys.map((m) => byMonthCategory[m]?.[cat] || 0)
+    return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0
+  }
+
+  const trends = []
+  for (const cat of categories) {
+    const cur = avg(recent, cat)
+    const prev = avg(prior, cat)
+    if (cur <= 0 && prev <= 0) continue
+    const changePct = prev > 0 ? Math.round(((cur - prev) / prev) * 100) : cur > 0 ? 100 : 0
+    if (Math.abs(changePct) >= 12) {
+      trends.push({ category: cat, changePct, recentAvg: Math.round(cur), priorAvg: Math.round(prev), rolling: true })
+    }
+  }
+  return trends.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
+}
+
+function buildActionTips({ categoryMeta, byCategory, monthCount, budgetAdherence, unmappedCategories }) {
+  const tips = []
+
+  for (const row of budgetAdherence.filter((r) => r.status === 'over')) {
+    tips.push({
+      type: 'trim',
+      text: `Trim ${row.category} by UGX ${fmtNum(row.overBy)}/mo to stay within budget (avg UGX ${fmtNum(row.monthlyAvg)} vs UGX ${fmtNum(row.budgetAmount)}).`,
+    })
+  }
+
+  for (const row of budgetAdherence.filter((r) => r.status === 'under' && r.budgetAmount > 0 && r.monthlyAvg < row.budgetAmount * 0.5)) {
+    tips.push({
+      type: 'room',
+      text: `${row.category} is well under budget — UGX ${fmtNum(row.headroom)}/mo headroom you could redirect to savings.`,
+    })
+  }
+
+  if (unmappedCategories.length) {
+    tips.push({
+      type: 'fix',
+      text: `Rename ${unmappedCategories.slice(0, 2).join(', ')}${unmappedCategories.length > 2 ? '…' : ''} in your sheet to match Settings budget names.`,
+    })
+  }
+
+  return tips.slice(0, 4)
+}
+
+function fmtNum(n) {
+  return new Intl.NumberFormat('en-UG', { maximumFractionDigits: 0 }).format(Math.round(n))
+}
+
 /**
  * Build a spending-habits profile from the user's expense history.
  */
@@ -55,28 +150,34 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
     return {
       hasData: false,
       insights: ['Log or sync expenses to unlock your spending profile.'],
+      tips: [{ type: 'fix', text: 'Add expenses manually, scan receipts, or sync a Google Sheet.' }],
     }
   }
 
   const categoryMeta = Object.fromEntries(budget.map((b) => [b.category, b]))
+  const budgetNames = new Set(budget.map((b) => b.category))
   const total = expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
   const months = [...new Set(expenses.map((e) => monthKey(e.date)))].sort()
   const monthCount = Math.max(1, months.length)
 
   const byCategory = {}
-  const byMonth = {}
   const byMonthCategory = {}
   const byPayment = {}
   const byWeekday = Array(7).fill(0)
-  const merchantTotals = {}
+  const merchantGroups = {}
+  let mappedTotal = 0
+  let describedCount = 0
+  const unmappedCategories = new Set()
 
   for (const e of expenses) {
     const amount = Number(e.amount || 0)
     const mk = monthKey(e.date)
     byCategory[e.category] = (byCategory[e.category] || 0) + amount
-    byMonth[mk] = (byMonth[mk] || 0) + amount
     if (!byMonthCategory[mk]) byMonthCategory[mk] = {}
     byMonthCategory[mk][e.category] = (byMonthCategory[mk][e.category] || 0) + amount
+
+    if (budgetNames.has(e.category)) mappedTotal += amount
+    else unmappedCategories.add(e.category)
 
     const pay = e.payment_method || 'Other'
     byPayment[pay] = (byPayment[pay] || 0) + amount
@@ -84,9 +185,26 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
     const day = new Date(`${e.date}T12:00:00`).getDay()
     if (Number.isFinite(day)) byWeekday[day] += amount
 
-    const merchant = normalizeMerchant(e.description)
-    if (merchant) merchantTotals[merchant] = (merchantTotals[merchant] || 0) + amount
+    const key = normalizeMerchantKey(e.description)
+    const label = displayMerchant(e.description)
+    if (label) {
+      describedCount += 1
+      if (key) {
+        if (!merchantGroups[key]) merchantGroups[key] = { label, amount: 0, count: 0 }
+        merchantGroups[key].amount += amount
+        merchantGroups[key].count += 1
+        if (label.length < merchantGroups[key].label.length) merchantGroups[key].label = label
+      }
+    }
   }
+
+  const mappedShare = total > 0 ? mappedTotal / total : 0
+  const confidence = computeConfidence({
+    expenseCount: expenses.length,
+    monthCount,
+    mappedShare,
+    hasDescriptions: expenses.length ? describedCount / expenses.length : 0,
+  })
 
   const avgMonthlySpend = Math.round(total / monthCount)
   const transactionsPerMonth = Math.round(expenses.length / monthCount)
@@ -96,29 +214,49 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
   let needsSpend = 0
   let wantsSpend = 0
   let savingsSpend = 0
-  let overBudgetCategories = 0
-  let withinBudgetCategories = 0
+  let unmappedSpend = 0
+  const budgetAdherence = []
 
   for (const [cat, spent] of Object.entries(byCategory)) {
     const meta = categoryMeta[cat]
-    const bucket = bucketForType(meta?.type || 'variable')
-    if (bucket === 'needs') needsSpend += spent
-    else if (bucket === 'wants') wantsSpend += spent
-    else savingsSpend += spent
-
+    const monthlyAvg = spent / monthCount
     const budgetAmt = Number(meta?.amount || 0)
-    if (budgetAmt > 0) {
-      const monthlyAvg = spent / monthCount
-      if (monthlyAvg > budgetAmt * 1.1) overBudgetCategories += 1
-      else withinBudgetCategories += 1
+
+    if (meta) {
+      const bucket = bucketForType(meta.type)
+      if (bucket === 'needs') needsSpend += spent
+      else if (bucket === 'wants') wantsSpend += spent
+      else savingsSpend += spent
+
+      if (budgetAmt > 0) {
+        const ratio = monthlyAvg / budgetAmt
+        let status = 'on'
+        if (ratio > 1.1) status = 'over'
+        else if (ratio < 0.85) status = 'under'
+        budgetAdherence.push({
+          category: cat,
+          monthlyAvg: Math.round(monthlyAvg),
+          budgetAmount: budgetAmt,
+          overBy: Math.max(0, Math.round(monthlyAvg - budgetAmt)),
+          headroom: Math.max(0, Math.round(budgetAmt - monthlyAvg)),
+          status,
+          color: meta.color,
+        })
+      }
+    } else {
+      unmappedSpend += spent
     }
   }
 
-  const unmapped = total - needsSpend - wantsSpend - savingsSpend
-  wantsSpend += unmapped
+  const adherenceScore =
+    budgetAdherence.length > 0
+      ? Math.round(
+          (budgetAdherence.filter((r) => r.status === 'on').length / budgetAdherence.length) * 100,
+        )
+      : null
 
   const needsShare = total > 0 ? needsSpend / total : 0
-  const wantsShare = total > 0 ? wantsSpend / total : 0
+  const wantsShare = total > 0 ? (wantsSpend + unmappedSpend) / total : 0
   const savingsShare = total > 0 ? savingsSpend / total : 0
 
   const categoryShares = Object.entries(byCategory)
@@ -127,6 +265,7 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
       amount,
       pct: total > 0 ? Math.round((amount / total) * 100) : 0,
       color: categoryMeta[category]?.color,
+      mapped: budgetNames.has(category),
     }))
     .sort((a, b) => b.amount - a.amount)
 
@@ -150,41 +289,41 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
     }))
     .sort((a, b) => b.amount - a.amount)
 
-  const topMerchants = Object.entries(merchantTotals)
-    .map(([name, amount]) => ({ name, amount, count: expenses.filter((e) => normalizeMerchant(e.description) === name).length }))
+  const topMerchants = Object.values(merchantGroups)
+    .map((g) => ({ name: g.label, amount: g.amount, count: g.count }))
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 5)
 
-  const trends = []
-  if (months.length >= 2) {
-    const latest = months[months.length - 1]
-    const prev = months[months.length - 2]
-    for (const cat of new Set([...Object.keys(byMonthCategory[latest] || {}), ...Object.keys(byMonthCategory[prev] || {})])) {
-      const cur = byMonthCategory[latest]?.[cat] || 0
-      const prior = byMonthCategory[prev]?.[cat] || 0
-      if (prior <= 0 && cur <= 0) continue
-      const changePct = prior > 0 ? Math.round(((cur - prior) / prior) * 100) : 100
-      if (Math.abs(changePct) >= 15) {
-        trends.push({ category: cat, changePct, latest: cur, prior })
-      }
-    }
-    trends.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
-  }
+  const rollingTrends = rollingCategoryTrends(byMonthCategory, months)
 
   const scores = {
-    planner: savingsRate != null && savingsRate >= 15 && overBudgetCategories <= withinBudgetCategories ? 3 : savingsRate >= 10 ? 1 : 0,
+    planner:
+      savingsRate != null && savingsRate >= 15 && (adherenceScore ?? 0) >= 60 ? 3 : savingsRate >= 10 ? 1 : 0,
     essentials: needsShare >= 0.5 ? 3 : needsShare >= 0.4 ? 1 : 0,
     lifestyle: wantsShare >= 0.45 ? 3 : wantsShare >= 0.35 ? 1 : 0,
     focused: topCategoryPct >= 35 ? 3 : topCategoryPct >= 28 ? 1 : 0,
     frequent: transactionsPerMonth >= 25 ? 3 : transactionsPerMonth >= 15 ? 1 : 0,
     stretched: salary > 0 && avgMonthlySpend >= salary * 0.9 ? 3 : avgMonthlySpend >= salary * 0.8 ? 1 : 0,
-    balanced: 1,
+    balanced: 0,
   }
 
-  const archetypeId = Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0]
+  const sortedArchetypes = Object.entries(scores).sort((a, b) => b[1] - a[1])
+  const archetypeId = sortedArchetypes[0][1] > 0 ? sortedArchetypes[0][0] : 'balanced'
   const archetype = { id: archetypeId, ...ARCHETYPES[archetypeId] }
 
+  const tips = buildActionTips({
+    categoryMeta,
+    byCategory,
+    monthCount,
+    budgetAdherence,
+    unmappedCategories: [...unmappedCategories],
+  })
+
   const insights = []
+
+  insights.push(
+    `${confidence.label} — based on ${expenses.length} expenses across ${monthCount} month${monthCount === 1 ? '' : 's'}.`,
+  )
 
   if (topCategory) {
     insights.push(`${topCategory.category} is your biggest area at ${topCategory.pct}% of tracked spending.`)
@@ -196,31 +335,34 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
         : `Average monthly spend exceeds salary by ${Math.abs(savingsRate)}%.`,
     )
   }
+  if (adherenceScore != null) {
+    insights.push(`${adherenceScore}% of budget categories are within ±10% of their monthly target.`)
+  }
   if (weekendShare >= 40) {
-    insights.push(`${weekendShare}% of spending happens on weekends — higher than weekdays.`)
-  } else if (weekendShare <= 20 && total > 0) {
-    insights.push('Most spending happens on weekdays — weekend purchases are relatively low.')
+    insights.push(`${weekendShare}% of spending happens on weekends.`)
   }
   if (paymentMix[0]) {
     insights.push(`${paymentMix[0].method} is your most-used payment method (${paymentMix[0].pct}%).`)
   }
-  if (transactionsPerMonth >= 15) {
-    insights.push(`Roughly ${transactionsPerMonth} expenses per month (~${avgTransaction.toLocaleString()} UGX average).`)
-  }
-  if (overBudgetCategories > 0) {
-    insights.push(`${overBudgetCategories} categor${overBudgetCategories === 1 ? 'y is' : 'ies are'} consistently above budget.`)
-  }
-  for (const t of trends.slice(0, 2)) {
+  for (const t of rollingTrends.slice(0, 2)) {
     const dir = t.changePct > 0 ? 'up' : 'down'
-    insights.push(`${t.category} is ${dir} ${Math.abs(t.changePct)}% vs the previous month.`)
+    insights.push(
+      `${t.category} is ${dir} ${Math.abs(t.changePct)}% (3-mo avg vs prior 3 mo).`,
+    )
   }
   if (topMerchants[0]) {
-    insights.push(`"${topMerchants[0].name}" is your most frequent merchant by total spend.`)
+    insights.push(`"${topMerchants[0].name}" is your top merchant by spend.`)
   }
+
+  const dataQuality = []
+  if (monthCount < 3) dataQuality.push('Use at least 3 months of data for stronger trends.')
+  if (mappedShare < 0.85) dataQuality.push('Align expense categories with your Settings budget names.')
+  if (describedCount / expenses.length < 0.5) dataQuality.push('Add descriptions or scan receipts for merchant insights.')
 
   return {
     hasData: true,
     archetype,
+    confidence,
     metrics: {
       total,
       monthCount,
@@ -233,13 +375,17 @@ export function buildSpendingProfile(expenses, { salary, budget = [] }) {
       savingsShare: Math.round(savingsShare * 100),
       weekendShare,
       topCategoryPct,
-      overBudgetCategories,
+      adherenceScore,
+      mappedShare: Math.round(mappedShare * 100),
     },
     categoryShares: categoryShares.slice(0, 6),
     weekdayPattern,
     paymentMix: paymentMix.slice(0, 4),
     topMerchants,
-    trends: trends.slice(0, 4),
+    trends: rollingTrends.slice(0, 4),
+    budgetAdherence: budgetAdherence.sort((a, b) => b.overBy - a.overBy).slice(0, 6),
+    tips,
+    dataQuality,
     insights: insights.slice(0, 8),
   }
 }

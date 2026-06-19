@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useAppSettings } from '../context/useAppSettings'
-import { useExpenses, useInvestments, useTrackerLogsBatch } from '../lib/hooks'
+import { useExpenses, useInvestments, useTrackerLogsBatch, useExpensesHistory } from '../lib/hooks'
 import { budgetLineAmount, fmt, getCurrentMonth } from '../lib/constants'
 import { computeTrackerSummary, enabledTrackers, getTrackerIcon } from '../lib/trackers'
+import { buildSpendingProfile } from '../lib/spendingProfile'
+import SpendingProfile from '../components/SpendingProfile'
 import { Card, MetricCard, ProgressBar, SectionTitle, Badge, MonthPicker, Spinner } from '../components/UI'
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -37,6 +39,7 @@ export default function Dashboard() {
   const trackers = useMemo(() => enabledTrackers(settings.trackers), [settings.trackers])
   const trackerIds = useMemo(() => trackers.map((t) => t.id), [trackers])
   const { expenses, loading } = useExpenses(month)
+  const { expenses: profileExpenses } = useExpensesHistory(6, month)
   const { transactions } = useInvestments(month)
   const { logsByTracker, loading: trackersLoading } = useTrackerLogsBatch(month, trackerIds)
 
@@ -105,6 +108,11 @@ export default function Dashboard() {
     .reduce((sum, t) => sum + Math.abs(Number(t.amount || 0)), 0)
   const incomeUsed = totalSpend + investedThisMonth
 
+  const spendingProfile = useMemo(
+    () => buildSpendingProfile(profileExpenses, { salary, budget }),
+    [profileExpenses, salary, budget],
+  )
+
   return (
     <div className="page">
       <header className="page-header">
@@ -149,6 +157,8 @@ export default function Dashboard() {
           </p>
         </Card>
       )}
+
+      <SpendingProfile profile={spendingProfile} compact />
 
       {trackers.length > 0 && (
         <Card style={{ marginBottom: '1.5rem' }}>
