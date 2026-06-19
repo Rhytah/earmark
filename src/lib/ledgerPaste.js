@@ -1,5 +1,5 @@
 import { format, parse, isValid } from 'date-fns'
-import { parseAmount, parseExpenseCsv, parseIsoOrDmy } from './csvExpenses'
+import { parseAmount, parseCsvText, parseExpenseCsv, parseIsoOrDmy } from './csvExpenses'
 
 function splitTabs(line) {
   return line.split(/\t/).map((c) => c.trim())
@@ -97,11 +97,20 @@ function isTotalsLine(line, cells) {
   return cells.some((c) => String(c).trim().toLowerCase() === 'totals')
 }
 
+function textToLedgerMatrix(text) {
+  const raw = text.replace(/\r\n/g, '\n').replace(/^\uFEFF/, '')
+  const firstLine = raw.split('\n').find((l) => l.trim()) ?? ''
+  if (firstLine.includes('\t')) {
+    return raw.split('\n').map(splitTabs)
+  }
+  return parseCsvText(raw)
+}
+
 /**
- * Parse day-book style TSV: Day, Date, Income, From, Expense, for.
+ * Parse day-book rows: Day, Date, Income, From, Expense, for.
  * Continuation rows reuse the last seen Date. Skips income-only and totals rows.
  */
-export function parseLedgerPaste(text, { categories, paymentMethods }) {
+export function parseLedgerMatrix(matrix, { categories, paymentMethods }) {
   const valid = []
   const invalid = []
   const warnings = []
@@ -112,7 +121,6 @@ export function parseLedgerPaste(text, { categories, paymentMethods }) {
   }
 
   const defaultPay = paymentMethods[0] ?? 'Card'
-  const rawLines = text.replace(/\r\n/g, '\n').replace(/^\uFEFF/, '').split('\n')
 
   let col = {
     day: 0,
@@ -124,9 +132,9 @@ export function parseLedgerPaste(text, { categories, paymentMethods }) {
   }
   let start = 0
 
-  const firstNonEmpty = rawLines.findIndex((l) => l.trim())
+  const firstNonEmpty = matrix.findIndex((row) => row.some((c) => String(c ?? '').trim()))
   if (firstNonEmpty >= 0) {
-    const hCells = splitTabs(rawLines[firstNonEmpty])
+    const hCells = matrix[firstNonEmpty]
     const d = findCol(hCells, 'day')
     const a = findCol(hCells, 'date')
     const i = findCol(hCells, 'income')
@@ -150,15 +158,16 @@ export function parseLedgerPaste(text, { categories, paymentMethods }) {
   const width = Math.max(col.day, col.date, col.income, col.from, col.expense, col.for) + 1
   let currentDate = null
 
-  for (let li = start; li < rawLines.length; li++) {
-    const line = rawLines[li]
-    if (!line.trim()) continue
+  for (let r = start; r < matrix.length; r++) {
+    const line = matrix[r]
+    if (!line.some((c) => String(c ?? '').trim())) continue
 
-    let cells = splitTabs(line)
+    let cells = line.map((c) => String(c ?? ''))
     while (cells.length < width) cells.push('')
     if (cells.length > width) cells = cells.slice(0, width)
 
-    if (isTotalsLine(line, cells)) continue
+    const lineText = cells.join('\t')
+    if (isTotalsLine(lineText, cells)) continue
 
     const dateParsed = parseProseDate(cells[col.date])
     if (dateParsed) currentDate = dateParsed
@@ -169,7 +178,7 @@ export function parseLedgerPaste(text, { categories, paymentMethods }) {
     if (!Number.isFinite(amount) || amount <= 0) continue
 
     if (!currentDate) {
-      invalid.push({ line: li + 1, reason: 'Expense before first dated row; add a row with a full date.' })
+      invalid.push({ line: r + 1, reason: 'Expense before first dated row; add a row with a full date.' })
       continue
     }
 
@@ -177,12 +186,15 @@ export function parseLedgerPaste(text, { categories, paymentMethods }) {
     const inf = inferLedgerCategory(forDesc, categories)
 
     if (!inf.category) {
-      invalid.push({ line: li + 1, reason: `Could not map “${forDesc}” to a category. Add a keyword or rename in Settings.` })
+      invalid.push({
+        line: r + 1,
+        reason: `Could not map “${forDesc}” to a category. Add a keyword or rename in Settings.`,
+      })
       continue
     }
 
     if (inf.guessed) {
-      warnings.push({ line: li + 1, text: `“${forDesc}” → ${inf.category}` })
+      warnings.push({ line: r + 1, text: `“${forDesc}” → ${inf.category}` })
     }
 
     valid.push({
@@ -195,6 +207,11 @@ export function parseLedgerPaste(text, { categories, paymentMethods }) {
   }
 
   return { valid, invalid, warnings }
+}
+
+/** Parse day-book paste (TSV from clipboard) or CSV export from Google Sheets. */
+export function parseLedgerPaste(text, opts) {
+  return parseLedgerMatrix(textToLedgerMatrix(text), opts)
 }
 
 /** Auto: ledger if it looks like a day book, else CSV. */

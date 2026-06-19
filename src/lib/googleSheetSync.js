@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { parseExpenseCsv } from './csvExpenses'
+import { parseExpensePaste } from './ledgerPaste'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey =
@@ -257,10 +257,9 @@ export async function syncExpensesFromSheet(settings) {
 
   try {
     const csv = await fetchSheetCsv(settings.sheet_sync_url)
-    const { valid, invalid } = parseExpenseCsv(csv, {
+    const { valid, invalid } = parseExpensePaste(csv, {
       categories,
       paymentMethods,
-      allowUnknownCategories: true,
     })
 
     const { error: delErr } = await supabase.from('expenses').delete().eq('source', 'google_sheet')
