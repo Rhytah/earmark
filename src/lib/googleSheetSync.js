@@ -4,7 +4,18 @@ import { parseExpenseCsv } from './csvExpenses'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
-const googleApiKey = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY?.trim()
+const googleApiKeyRaw = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY?.trim()
+const googleApiKeyError = (() => {
+  if (!googleApiKeyRaw) return null
+  if (googleApiKeyRaw.includes('.apps.googleusercontent.com')) {
+    return 'VITE_GOOGLE_SHEETS_API_KEY is an OAuth Client ID, not an API key. In Google Cloud Console → Credentials, create an API key (starts with AIza…).'
+  }
+  if (!googleApiKeyRaw.startsWith('AIza')) {
+    return 'VITE_GOOGLE_SHEETS_API_KEY does not look like a Google API key (expected AIza…).'
+  }
+  return null
+})()
+const googleApiKey = googleApiKeyError ? null : googleApiKeyRaw
 
 /** Turn a share/edit link into a CSV export URL. */
 export function normalizeGoogleSheetUrl(input) {
@@ -176,6 +187,7 @@ async function fetchCsvViaEdgeFunction(url) {
 
 async function fetchSheetCsv(sheetInput) {
   const errors = []
+  if (googleApiKeyError) errors.push(googleApiKeyError)
 
   if (googleApiKey) {
     try {
