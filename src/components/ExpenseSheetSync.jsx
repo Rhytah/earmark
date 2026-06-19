@@ -43,6 +43,18 @@ export default function ExpenseSheetSync() {
     return true
   }
 
+  const handleLiveSyncChange = async (enabled) => {
+    const nextDraft = { ...draft, sheet_sync_enabled: enabled }
+    setDraft(nextDraft)
+    setMessage('')
+    const saved = await persist(nextDraft)
+    if (saved) {
+      setMessage(enabled ? 'Live sync enabled.' : 'Live sync disabled.')
+    } else {
+      setDraft((d) => ({ ...d, sheet_sync_enabled: !enabled }))
+    }
+  }
+
   const handleSync = async () => {
     if (!draft.sheet_sync_url?.trim()) {
       setMessage('Paste your Google Sheet link first.')
@@ -120,7 +132,8 @@ export default function ExpenseSheetSync() {
           <input
             type="checkbox"
             checked={Boolean(draft.sheet_sync_enabled)}
-            onChange={(e) => setDraft((d) => ({ ...d, sheet_sync_enabled: e.target.checked }))}
+            disabled={saving}
+            onChange={(e) => void handleLiveSyncChange(e.target.checked)}
           />
           Live sync from sheet
         </label>
