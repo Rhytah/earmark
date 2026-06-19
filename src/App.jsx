@@ -11,6 +11,7 @@ import TrackerDetail from './pages/TrackerDetail'
 import Goals from './pages/Goals'
 import Reports from './pages/Reports'
 import Investments from './pages/Investments'
+import Profile from './pages/Profile'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
 import { Spinner } from './components/UI'
@@ -59,6 +60,7 @@ function AppRoutes({ theme, onToggleTheme }) {
             <Route path="/goals" element={<Goals />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/investments" element={<Investments />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>

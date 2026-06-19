@@ -163,7 +163,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <SpendingProfileGame profile={spendingProfile} game={spendingGame} />
+      <SpendingProfileGame profile={spendingProfile} game={spendingGame} compact />
 
       {trackers.length > 0 && (
         <Card style={{ marginBottom: '1.5rem' }}>

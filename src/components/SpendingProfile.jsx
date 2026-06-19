@@ -45,7 +45,7 @@ export default function SpendingProfile({ profile, compact = false }) {
         {tips[0] && (
           <p style={{ fontSize: 12, color: 'var(--amber)', margin: '0 0 12px', lineHeight: 1.45 }}>{tips[0].text}</p>
         )}
-        <Link to="/reports" className="spending-profile-link">
+        <Link to="/profile" className="spending-profile-link">
           Full profile & trends <ChevronRight size={14} />
         </Link>
       </Card>

@@ -53,15 +53,50 @@ const ARCHETYPE_BUDDY = {
   balanced: '🌿',
 }
 
-export default function SpendingProfileGame({ profile, game }) {
+export default function SpendingProfileGame({ profile, game, compact = false, fullPage = false }) {
   const { settings } = useAppSettings()
   const displayName = settings.app_title?.trim() || 'You'
 
   if (!game) return null
 
+  if (compact) {
+    return (
+      <Card className="profile-teaser">
+        <div className="profile-teaser-main">
+          <span className="profile-teaser-avatar" aria-hidden>
+            {game.hasData ? game.avatar : '🐣'}
+          </span>
+          <div className="profile-teaser-body">
+            {game.hasData ? (
+              <>
+                <div className="profile-teaser-kicker">
+                  Lv {game.level} · {game.levelTitle}
+                </div>
+                <div className="profile-teaser-title">
+                  {game.archetypeLabel || 'Your spending profile'}
+                </div>
+                <p className="profile-teaser-copy">
+                  {profile?.insights?.[1] || game.quests[0]?.text || 'See your habits, badges, and quests.'}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="profile-teaser-title">Unlock your profile</div>
+                <p className="profile-teaser-copy">{game.quests[0]?.text}</p>
+              </>
+            )}
+          </div>
+        </div>
+        <Link to="/profile" className="profile-teaser-link">
+          Open profile <ChevronRight size={16} />
+        </Link>
+      </Card>
+    )
+  }
+
   if (!game.hasData) {
     return (
-      <Card className="profile-game profile-game--empty">
+      <Card className={`profile-game profile-game--empty${fullPage ? ' profile-game--page' : ''}`}>
         <div className="profile-game-hero">
           <div className="profile-game-blobs" aria-hidden>
             <span className="profile-game-blob profile-game-blob--a">🐣</span>
@@ -94,7 +129,7 @@ export default function SpendingProfileGame({ profile, game }) {
     'You are building healthier money habits one expense at a time.'
 
   return (
-    <Card className={`profile-game profile-game--${profile?.archetype?.id || 'balanced'}`}>
+    <Card className={`profile-game profile-game--${profile?.archetype?.id || 'balanced'}${fullPage ? ' profile-game--page' : ''}`}>
       <div className="profile-game-hero">
         <div className="profile-game-blobs" aria-hidden>
           <span className="profile-game-blob profile-game-blob--a">{game.avatar}</span>
@@ -126,9 +161,11 @@ export default function SpendingProfileGame({ profile, game }) {
             {activeQuest?.done ? 'Nice work this month' : 'Your next gentle nudge'}
           </p>
           <p className="profile-game-highlight-text">{activeQuest?.text}</p>
-          <Link to="/reports" className="profile-game-btn profile-game-btn--soft">
-            See full profile <ChevronRight size={16} />
-          </Link>
+          {!fullPage && (
+            <Link to="/profile" className="profile-game-btn profile-game-btn--soft">
+              Open profile <ChevronRight size={16} />
+            </Link>
+          )}
         </div>
       </div>
 
@@ -156,7 +193,7 @@ export default function SpendingProfileGame({ profile, game }) {
         </div>
       </div>
 
-      {game.badges.some((b) => b.unlocked) && (
+      {!fullPage && game.badges.some((b) => b.unlocked) && (
         <div className="profile-game-chips">
           {game.badges
             .filter((b) => b.unlocked)

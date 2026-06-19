@@ -211,7 +211,7 @@ export function buildSpendingGamification(profile) {
       { key: 'discipline', label: 'Discipline', icon: '🎯', value: discipline, color: 'var(--accent)' },
     ],
     badges,
-    quests: quests.slice(0, 2),
+    quests,
     unlockedBadgeCount: badges.filter((b) => b.unlocked).length,
   }
 }

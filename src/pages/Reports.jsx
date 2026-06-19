@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis } from 'recharts'
 import { useAppSettings } from '../context/useAppSettings'
 import { useExpensesRange, useInvestmentsRange, useSavingsSnapshot } from '../lib/hooks'
 import { fmt, getCurrentMonth } from '../lib/constants'
 import { Card, MetricCard, SectionTitle, Spinner, MonthPicker } from '../components/UI'
-import SpendingProfile from '../components/SpendingProfile'
-import { buildSpendingProfile } from '../lib/spendingProfile'
 
 const PROJECT_MONTHS = 3
 
@@ -272,11 +272,6 @@ export default function Reports() {
     }
   }, [expenses, salary, budget, snapshots, investments_category, emergency_category, investmentTransactions, month])
 
-  const spendingProfile = useMemo(
-    () => buildSpendingProfile(expenses, { salary, budget }),
-    [expenses, salary, budget],
-  )
-
   const pieData = report.byCategory.slice(0, 6).map((c, i) => ({
     name: c.category,
     value: c.total,
@@ -359,7 +354,19 @@ export default function Reports() {
             <MetricCard label="Recent spend trend" value={Math.abs(report.recentTrendPct)} prefix="" sub={report.recentTrendPct >= 0 ? 'up vs previous month' : 'down vs previous month'} color={report.recentTrendPct > 0 ? 'var(--red)' : 'var(--green)'} />
           </div>
 
-          <SpendingProfile profile={spendingProfile} />
+          <Card style={{ marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <SectionTitle style={{ marginBottom: 4 }}>Spending habits</SectionTitle>
+                <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
+                  Archetype, badges, quests, and habit insights live on your Profile tab.
+                </p>
+              </div>
+              <Link to="/profile" className="spending-profile-link">
+                Open profile <ChevronRight size={14} />
+              </Link>
+            </div>
+          </Card>
 
           <Card style={{ marginBottom: '1.5rem' }}>
             <SectionTitle>Where your money goes most</SectionTitle>

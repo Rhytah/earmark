@@ -10,6 +10,7 @@ import {
   PieChart,
   Receipt,
   Settings,
+  Sparkles,
   Sun,
   TrendingUp,
   X,
@@ -20,6 +21,7 @@ import { enabledTrackers, getTrackerIcon } from '../lib/trackers'
 
 const coreLinks = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/profile', icon: Sparkles, label: 'Profile' },
   { to: '/expenses', icon: Receipt, label: 'Expenses' },
   { to: '/goals', icon: TrendingUp, label: 'Goals' },
   { to: '/reports', icon: PieChart, label: 'Reports' },
