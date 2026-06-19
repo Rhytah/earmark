@@ -763,6 +763,147 @@ body {
   color: var(--muted);
 }
 
+.spending-profile-hero {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.spending-profile-label {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.spending-profile-summary {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.5;
+  max-width: 42ch;
+}
+
+.spending-profile-stats {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.spending-profile-stat-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.spending-profile-stat-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.spending-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.spending-profile-panel {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.spending-profile-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.spending-profile-split {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  min-height: 56px;
+}
+
+.spending-profile-split > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.spending-profile-bar {
+  width: 100%;
+  height: 36px;
+  border-radius: 4px;
+}
+
+.spending-profile-weekdays {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 72px;
+}
+
+.spending-profile-weekday {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.spending-profile-weekday-bar {
+  width: 100%;
+  margin-top: auto;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+  min-height: 8px;
+}
+
+.spending-profile-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.spending-profile-row:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.spending-profile-insights {
+  margin: 14px 0 0;
+  padding-left: 1.2rem;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.spending-profile-insights li + li {
+  margin-top: 6px;
+}
+
 /* Modal overlay safe areas */
 .modal-backdrop {
   position: fixed;

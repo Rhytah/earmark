@@ -4,6 +4,8 @@ import { useAppSettings } from '../context/useAppSettings'
 import { useExpensesRange, useInvestmentsRange, useSavingsSnapshot } from '../lib/hooks'
 import { fmt, getCurrentMonth } from '../lib/constants'
 import { Card, MetricCard, SectionTitle, Spinner, MonthPicker } from '../components/UI'
+import SpendingProfile from '../components/SpendingProfile'
+import { buildSpendingProfile } from '../lib/spendingProfile'
 
 const PROJECT_MONTHS = 3
 
@@ -270,6 +272,11 @@ export default function Reports() {
     }
   }, [expenses, salary, budget, snapshots, investments_category, emergency_category, investmentTransactions, month])
 
+  const spendingProfile = useMemo(
+    () => buildSpendingProfile(expenses, { salary, budget }),
+    [expenses, salary, budget],
+  )
+
   const pieData = report.byCategory.slice(0, 6).map((c, i) => ({
     name: c.category,
     value: c.total,
@@ -351,6 +358,8 @@ export default function Reports() {
             <MetricCard label="Forecast next month savings" value={report.projectedNextSavings} color={report.projectedNextSavings < 0 ? 'var(--red)' : 'var(--green)'} />
             <MetricCard label="Recent spend trend" value={Math.abs(report.recentTrendPct)} prefix="" sub={report.recentTrendPct >= 0 ? 'up vs previous month' : 'down vs previous month'} color={report.recentTrendPct > 0 ? 'var(--red)' : 'var(--green)'} />
           </div>
+
+          <SpendingProfile profile={spendingProfile} />
 
           <Card style={{ marginBottom: '1.5rem' }}>
             <SectionTitle>Where your money goes most</SectionTitle>
