@@ -1694,6 +1694,325 @@ body {
   opacity: 0.92;
 }
 
+/* Earnings vs allocation (Reports) */
+.earnings-allocation-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.earnings-allocation-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.875rem;
+  border-radius: 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.earnings-allocation-stat > span:first-child {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.earnings-allocation-stat strong {
+  font-size: 1.0625rem;
+  letter-spacing: -0.02em;
+}
+
+.earnings-allocation-stat small {
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.earnings-allocation-income-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 12px;
+  background: rgba(61, 190, 122, 0.08);
+  border: 1px solid rgba(61, 190, 122, 0.18);
+}
+
+.earnings-allocation-income-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+}
+
+.earnings-allocation-income-row span:last-child {
+  font-weight: 600;
+  color: var(--green);
+}
+
+.earnings-allocation-buckets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-bottom: 1.25rem;
+}
+
+.earnings-allocation-bucket-head,
+.earnings-allocation-bucket-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.earnings-allocation-bucket-foot {
+  margin-bottom: 0;
+  margin-top: 0.35rem;
+}
+
+.earnings-allocation-bar-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.earnings-allocation-bar-target {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: rgba(107, 147, 255, 0.2);
+  border-right: 2px solid var(--accent);
+  pointer-events: none;
+}
+
+.earnings-allocation-bar-actual {
+  position: relative;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s var(--ease);
+}
+
+.earnings-allocation-categories {
+  margin-bottom: 1.25rem;
+  overflow-x: auto;
+}
+
+.earnings-allocation-categories-head,
+.earnings-allocation-category-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) repeat(4, minmax(72px, 1fr));
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.earnings-allocation-categories-head {
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.earnings-allocation-category-row {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.earnings-allocation-cat-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.earnings-allocation-cat-name i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  font-style: normal;
+}
+
+.earnings-allocation-insights {
+  margin: 0;
+  padding: 0.875rem 1rem 0.875rem 1.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--muted);
+  background: rgba(107, 147, 255, 0.06);
+  border: 1px solid rgba(107, 147, 255, 0.14);
+  border-radius: 12px;
+}
+
+.earnings-allocation-insights li + li {
+  margin-top: 0.35rem;
+}
+
+.earnings-forecast-intro {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 1.25rem;
+}
+
+.earnings-forecast-intro p {
+  margin: 0 0 0.35rem;
+}
+
+.earnings-forecast-intro strong {
+  color: var(--text);
+}
+
+.earnings-forecast-bucket {
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.earnings-forecast-bucket:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.earnings-forecast-bucket-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.earnings-forecast-bucket-head strong {
+  display: block;
+  font-size: 0.9375rem;
+}
+
+.earnings-forecast-target {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-top: 0.15rem;
+}
+
+.earnings-forecast-status {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.earnings-forecast-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.625rem;
+  margin-bottom: 0.625rem;
+}
+
+.earnings-forecast-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+}
+
+.earnings-forecast-metrics span {
+  color: var(--muted);
+}
+
+.earnings-forecast-metrics strong {
+  font-size: 0.8125rem;
+}
+
+.earnings-forecast-metrics strong small {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.earnings-forecast-bar-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.earnings-forecast-bar-target {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: rgba(107, 147, 255, 0.15);
+  border-right: 2px solid var(--accent);
+}
+
+.earnings-forecast-bar-actual {
+  position: relative;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.earnings-forecast-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.earnings-forecast-cat-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1.2fr) repeat(3, minmax(72px, 1fr));
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.earnings-forecast-cat-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
+.earnings-forecast-cat-name i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  font-style: normal;
+}
+
+.earnings-forecast-cat-row strong {
+  color: var(--text);
+  text-align: right;
+}
+
+.earnings-forecast-empty {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+.earnings-forecast-tip {
+  font-size: 0.75rem;
+  color: var(--amber);
+  margin: 0;
+  line-height: 1.45;
+  padding: 0.5rem 0.625rem;
+  background: rgba(255, 179, 71, 0.08);
+  border-radius: 8px;
+}
+
 /* Modal overlay safe areas */
 .modal-backdrop {
   position: fixed;
