@@ -1,6 +1,28 @@
 import { DEFAULT_APP_SETTINGS } from './constants'
 import { gymLegacyFromTrackers, normalizeTrackers } from './trackers'
 
+export function normalizeGamification(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return { ...DEFAULT_APP_SETTINGS.gamification }
+  }
+
+  const earned_badges = {}
+  const src = raw.earned_badges || raw.earnedBadges || {}
+  for (const [id, val] of Object.entries(src)) {
+    if (val && typeof val === 'object') {
+      const earned_at = val.earned_at || val.earnedAt || null
+      if (earned_at) earned_badges[id] = { earned_at }
+    }
+  }
+
+  return {
+    version: 1,
+    peak_xp: Math.max(0, Math.round(Number(raw.peak_xp ?? raw.peakXp) || 0)),
+    earned_badges,
+    updated_at: raw.updated_at ?? raw.updatedAt ?? null,
+  }
+}
+
 function normalizeInvestmentGoals(goals) {
   const raw = Array.isArray(goals) ? [...goals].slice(0, 3) : []
   while (raw.length < 3) {
@@ -39,6 +61,7 @@ export function rowToSettings(row) {
     sheet_sync_last_at: row.sheet_sync_last_at ?? null,
     sheet_sync_last_error: row.sheet_sync_last_error ?? null,
     sheet_sync_last_count: Number(row.sheet_sync_last_count) || 0,
+    gamification: normalizeGamification(row.gamification),
   }
 }
 
@@ -65,6 +88,7 @@ export function settingsToRow(s, userId) {
     sheet_sync_last_at: s.sheet_sync_last_at ?? null,
     sheet_sync_last_error: s.sheet_sync_last_error ?? null,
     sheet_sync_last_count: Number(s.sheet_sync_last_count) || 0,
+    gamification: normalizeGamification(s.gamification),
   }
 }
 
@@ -80,5 +104,6 @@ export function mergeDefaults(partial) {
       partial.investment_goals?.length ? partial.investment_goals : DEFAULT_APP_SETTINGS.investment_goals,
     ),
     trackers: normalizeTrackers(partial.trackers, partial),
+    gamification: normalizeGamification(partial.gamification ?? DEFAULT_APP_SETTINGS.gamification),
   }
 }

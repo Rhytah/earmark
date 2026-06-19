@@ -65,5 +65,9 @@ create policy "expense_receipts_delete_own"
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+-- Profile gamification (peak XP + earned badges)
+alter table public.app_settings
+  add column if not exists gamification jsonb not null default '{"version":1,"peak_xp":0,"earned_badges":{}}'::jsonb;
+
 -- Refresh PostgREST schema cache
 notify pgrst, 'reload schema';

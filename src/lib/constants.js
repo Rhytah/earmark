@@ -31,6 +31,12 @@ export const DEFAULT_APP_SETTINGS = {
   sheet_sync_last_at: null,
   sheet_sync_last_error: null,
   sheet_sync_last_count: 0,
+  gamification: {
+    version: 1,
+    peak_xp: 0,
+    earned_badges: {},
+    updated_at: null,
+  },
 }
 
 export function budgetLineAmount(budget, categoryName) {

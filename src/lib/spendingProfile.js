@@ -1,4 +1,4 @@
-import { evaluateBadges } from './profileBadges'
+import { evaluateBadges, XP_PER_LEVEL, LEVEL_TITLES } from './profileBadges'
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -69,21 +69,6 @@ const ARCHETYPE_AVATARS = {
   stretched: '😅',
   balanced: '⚖️',
 }
-
-const LEVEL_TITLES = [
-  'Coin Curious',
-  'Pocket Padawan',
-  'Budget Beginner',
-  'Money Minded',
-  'Cash Captain',
-  'Finance Fighter',
-  'Savings Sage',
-  'Wealth Wizard',
-  'Budget Legend',
-  'Money Master',
-]
-
-const XP_PER_LEVEL = 100
 
 /** Turn profile stats into levels, badges, and quests for the dashboard game card. */
 export function buildSpendingGamification(profile) {
@@ -161,6 +146,7 @@ export function buildSpendingGamification(profile) {
     archetypeSummary: archetype.summary,
     level,
     levelTitle: LEVEL_TITLES[level - 1],
+    computedXp: Math.round(rawXp),
     xp: Math.round(rawXp),
     xpInLevel,
     xpToNext,

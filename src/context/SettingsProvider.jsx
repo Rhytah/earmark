@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { DEFAULT_APP_SETTINGS } from '../lib/constants'
-import { mergeDefaults, rowToSettings, settingsToRow } from '../lib/settingsDb'
+import { mergeDefaults, normalizeGamification, rowToSettings, settingsToRow } from '../lib/settingsDb'
 import { useAuth } from './useAuth'
 import { AppSettingsContext } from './settingsContext'
 
@@ -83,6 +83,30 @@ export function SettingsProvider({ children }) {
     [user?.id],
   )
 
+  const saveGamification = useCallback(
+    async (gamification) => {
+      if (!user?.id) return { error: new Error('Not signed in') }
+
+      const normalized = normalizeGamification(gamification)
+      const { error: updateError } = await supabase
+        .from('app_settings')
+        .update({ gamification: normalized, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+
+      if (updateError) {
+        console.error('[app_settings gamification]', updateError.message, updateError)
+        return { error: updateError }
+      }
+
+      setSettings((prev) => ({
+        ...(prev ?? DEFAULT_APP_SETTINGS),
+        gamification: normalized,
+      }))
+      return { error: null }
+    },
+    [user?.id],
+  )
+
   const value = useMemo(
     () => ({
       settings: settings ?? DEFAULT_APP_SETTINGS,
@@ -90,8 +114,9 @@ export function SettingsProvider({ children }) {
       error,
       reload: load,
       saveSettings,
+      saveGamification,
     }),
-    [settings, loading, error, load, saveSettings],
+    [settings, loading, error, load, saveSettings, saveGamification],
   )
 
   return <AppSettingsContext.Provider value={value}>{children}</AppSettingsContext.Provider>

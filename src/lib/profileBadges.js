@@ -1,4 +1,20 @@
+import { normalizeGamification } from './settingsDb'
+
 const STORAGE_PREFIX = 'earmark:earned-badges:'
+export const XP_PER_LEVEL = 100
+
+export const LEVEL_TITLES = [
+  'Coin Curious',
+  'Pocket Padawan',
+  'Budget Beginner',
+  'Money Minded',
+  'Cash Captain',
+  'Finance Fighter',
+  'Savings Sage',
+  'Wealth Wizard',
+  'Budget Legend',
+  'Money Master',
+]
 
 export const BADGE_DEFINITIONS = [
   {
@@ -70,22 +86,41 @@ function storageKey(userId) {
   return `${STORAGE_PREFIX}${userId || 'anonymous'}`
 }
 
-export function loadEarnedBadges(userId) {
+function loadLocalEarnedBadges(userId) {
   if (!userId || typeof localStorage === 'undefined') return {}
   try {
     const raw = localStorage.getItem(storageKey(userId))
-    return raw ? JSON.parse(raw) : {}
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    const out = {}
+    for (const [id, val] of Object.entries(parsed)) {
+      const earned_at = val?.earnedAt || val?.earned_at
+      if (earned_at) out[id] = { earned_at }
+    }
+    return out
   } catch {
     return {}
   }
 }
 
-function saveEarnedBadges(userId, earned) {
+function clearLocalEarnedBadges(userId) {
   if (!userId || typeof localStorage === 'undefined') return
   try {
-    localStorage.setItem(storageKey(userId), JSON.stringify(earned))
+    localStorage.removeItem(storageKey(userId))
   } catch {
-    /* quota / private mode */
+    /* ignore */
+  }
+}
+
+export function xpToLevelProgress(xp) {
+  const safeXp = Math.max(0, Math.round(Number(xp) || 0))
+  const level = Math.min(10, Math.max(1, Math.floor(safeXp / XP_PER_LEVEL) + 1))
+  return {
+    level,
+    levelTitle: LEVEL_TITLES[level - 1],
+    xp: safeXp,
+    xpInLevel: safeXp % XP_PER_LEVEL,
+    xpToNext: XP_PER_LEVEL,
   }
 }
 
@@ -111,40 +146,88 @@ export function evaluateBadges(profile) {
   })
 }
 
-/** Merge live criteria with permanently earned badges; persist new unlocks. */
-export function finalizeBadgeState(badges, userId) {
-  if (!badges.length) return badges
-
-  const earned = loadEarnedBadges(userId)
+function mergeEarnedBadges(savedBadges, computedBadges, userId) {
+  const earned = { ...savedBadges }
   let dirty = false
   const now = new Date().toISOString()
 
-  const merged = badges.map((badge) => {
+  const local = loadLocalEarnedBadges(userId)
+  for (const [id, val] of Object.entries(local)) {
+    if (!earned[id]) {
+      earned[id] = val
+      dirty = true
+    }
+  }
+  if (Object.keys(local).length) clearLocalEarnedBadges(userId)
+
+  const merged = computedBadges.map((badge) => {
     const stored = earned[badge.id]
     const newlyEarned = badge.unlocked && !stored
     if (newlyEarned) {
-      earned[badge.id] = { earnedAt: now }
+      earned[badge.id] = { earned_at: now }
       dirty = true
     }
-    const isEarned = Boolean(stored) || badge.unlocked
+    const isEarned = Boolean(stored || earned[badge.id])
+    const earnedAt = earned[badge.id]?.earned_at ?? null
     return {
       ...badge,
       unlocked: isEarned,
-      earnedAt: stored?.earnedAt ?? (badge.unlocked ? now : null),
+      earnedAt,
       currentlyMet: badge.unlocked,
     }
   })
 
-  if (dirty) saveEarnedBadges(userId, earned)
-  return merged
+  return { badges: merged, earned, dirty }
 }
 
-export function finalizeGamification(game, userId) {
-  if (!game) return game
-  const badges = finalizeBadgeState(game.badges || [], userId)
-  return {
-    ...game,
-    badges,
-    unlockedBadgeCount: badges.filter((b) => b.unlocked).length,
+/** Merge live stats with saved peak XP and earned badges; returns state to persist. */
+export function mergeGamificationProgress(game, savedGamification, userId) {
+  if (!game) return { game, nextGamification: null, dirty: false }
+
+  const saved = normalizeGamification(savedGamification)
+  const computedXp = Math.max(0, Math.round(Number(game.computedXp ?? game.xp) || 0))
+  const peakXp = Math.max(saved.peak_xp, computedXp)
+  const xpDirty = peakXp > saved.peak_xp
+
+  let badges = game.badges || []
+  let earned = saved.earned_badges
+  let badgesDirty = false
+
+  if (badges.length) {
+    const badgeMerge = mergeEarnedBadges(saved.earned_badges, badges, userId)
+    badges = badgeMerge.badges
+    earned = badgeMerge.earned
+    badgesDirty = badgeMerge.dirty
   }
+
+  const progress = xpToLevelProgress(peakXp)
+  const dirty = xpDirty || badgesDirty
+
+  const nextGamification = dirty
+    ? {
+        version: 1,
+        peak_xp: peakXp,
+        earned_badges: earned,
+        updated_at: new Date().toISOString(),
+      }
+    : null
+
+  return {
+    game: {
+      ...game,
+      ...progress,
+      computedXp,
+      xpDelta: peakXp - saved.peak_xp,
+      badges,
+      unlockedBadgeCount: badges.filter((b) => b.unlocked).length,
+      synced: true,
+    },
+    nextGamification,
+    dirty,
+  }
+}
+
+/** @deprecated Use mergeGamificationProgress via useSpendingGamification */
+export function finalizeGamification(game, userId, savedGamification) {
+  return mergeGamificationProgress(game, savedGamification, userId).game
 }

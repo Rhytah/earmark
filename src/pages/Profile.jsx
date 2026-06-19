@@ -1,10 +1,9 @@
 import { useMemo } from 'react'
 import { useAppSettings } from '../context/useAppSettings'
-import { useAuth } from '../context/useAuth'
 import { useExpensesHistory } from '../lib/hooks'
 import { getCurrentMonth } from '../lib/constants'
-import { buildSpendingProfile, buildSpendingGamification } from '../lib/spendingProfile'
-import { finalizeGamification } from '../lib/profileBadges'
+import { buildSpendingProfile } from '../lib/spendingProfile'
+import { useSpendingGamification } from '../lib/useSpendingGamification'
 import SpendingProfileGame from '../components/SpendingProfileGame'
 import ProfileGamificationDetails from '../components/ProfileGamificationDetails'
 import SpendingProfile from '../components/SpendingProfile'
@@ -12,7 +11,6 @@ import { Spinner } from '../components/UI'
 
 export default function Profile() {
   const { settings } = useAppSettings()
-  const { user } = useAuth()
   const { salary, budget } = settings
   const month = getCurrentMonth()
   const { expenses, loading } = useExpensesHistory(6, month)
@@ -22,10 +20,7 @@ export default function Profile() {
     [expenses, salary, budget],
   )
 
-  const spendingGame = useMemo(
-    () => finalizeGamification(buildSpendingGamification(spendingProfile), user?.id),
-    [spendingProfile, user?.id],
-  )
+  const spendingGame = useSpendingGamification(spendingProfile)
 
   return (
     <div className="page profile-page">

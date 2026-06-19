@@ -7,6 +7,12 @@ export default function ProfileGamificationDetails({ game }) {
     <>
       <Card className="profile-page-panel">
         <SectionTitle>Your stats</SectionTitle>
+        {game.xp != null && (
+          <p className="profile-page-panel-desc">
+            {game.xp} total XP · level {game.level} saved to your account
+            {game.xpDelta > 0 ? ` · +${game.xpDelta} XP this visit` : ''}
+          </p>
+        )}
         <div className="profile-page-stats">
           {game.stats.map((stat) => (
             <div key={stat.key} className="profile-page-stat">
@@ -28,7 +34,7 @@ export default function ProfileGamificationDetails({ game }) {
       <Card className="profile-page-panel">
         <SectionTitle>Badges</SectionTitle>
         <p className="profile-page-panel-desc">
-          {game.unlockedBadgeCount} of {game.badges.length} earned · progress updates from your last 6 months of expenses
+          {game.unlockedBadgeCount} of {game.badges.length} earned · synced to your account
         </p>
         <div className="profile-page-badges">
           {game.badges.map((badge) => (
