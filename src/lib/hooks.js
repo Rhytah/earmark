@@ -215,6 +215,87 @@ export function useExpensesRange(startDate = null, endDate = null) {
   return { expenses, loading, refetch: fetch }
 }
 
+function dispatchIncomeChanged() {
+  window.dispatchEvent(new CustomEvent('earmark:income-changed'))
+}
+
+export function useIncome(month = getCurrentMonth()) {
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    const { start, end } = getMonthRange(month)
+    const { data, error } = await supabase
+      .from('income_entries')
+      .select('*')
+      .gte('date', start)
+      .lte('date', end)
+      .order('date', { ascending: false })
+    if (error) console.error('[supabase income_entries]', error.message, error)
+    setEntries(data || [])
+    setLoading(false)
+  }, [month])
+
+  useEffect(() => {
+    void Promise.resolve().then(() => fetch())
+  }, [fetch])
+
+  useEffect(() => {
+    const onChange = () => void fetch()
+    window.addEventListener('earmark:income-changed', onChange)
+    return () => window.removeEventListener('earmark:income-changed', onChange)
+  }, [fetch])
+
+  const addIncome = async (entry) => {
+    const { data, error } = await supabase.from('income_entries').insert([entry]).select()
+    if (!error) {
+      setEntries((prev) => [data[0], ...prev])
+      dispatchIncomeChanged()
+    }
+    return { data: data?.[0] ?? null, error }
+  }
+
+  const deleteIncome = async (id) => {
+    const { error } = await supabase.from('income_entries').delete().eq('id', id)
+    if (!error) {
+      setEntries((prev) => prev.filter((row) => row.id !== id))
+      dispatchIncomeChanged()
+    }
+    return { error }
+  }
+
+  return { entries, loading, addIncome, deleteIncome, refetch: fetch }
+}
+
+export function useIncomeRange(startDate = null, endDate = null) {
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    let query = supabase.from('income_entries').select('*')
+    if (startDate) query = query.gte('date', startDate)
+    if (endDate) query = query.lte('date', endDate)
+    const { data, error } = await query.order('date', { ascending: true })
+    if (error) console.error('[supabase income_entries range]', error.message, error)
+    setEntries(data || [])
+    setLoading(false)
+  }, [startDate, endDate])
+
+  useEffect(() => {
+    void Promise.resolve().then(() => fetch())
+  }, [fetch])
+
+  useEffect(() => {
+    const onChange = () => void fetch()
+    window.addEventListener('earmark:income-changed', onChange)
+    return () => window.removeEventListener('earmark:income-changed', onChange)
+  }, [fetch])
+
+  return { entries, loading, refetch: fetch }
+}
+
 export function useSavingsSnapshot() {
   const [snapshots, setSnapshots] = useState([])
   const [loading, setLoading] = useState(true)

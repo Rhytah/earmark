@@ -30,6 +30,31 @@ export function incomeSummary(settings) {
   }
 }
 
+export function sumLoggedIncome(entries) {
+  return (entries || []).reduce((sum, row) => sum + Number(row.amount || 0), 0)
+}
+
+export function incomeSourceOptions(settings) {
+  const sources = ['Salary']
+  for (const row of normalizeExtraIncome(settings?.extra_income)) {
+    const label = row.label?.trim()
+    if (label && !sources.includes(label)) sources.push(label)
+  }
+  if (!sources.includes('Other')) sources.push('Other')
+  return sources
+}
+
+export function monthIncomeView(settings, loggedEntries) {
+  const expected = incomeSummary(settings)
+  const logged = sumLoggedIncome(loggedEntries)
+  return {
+    ...expected,
+    logged,
+    basis: logged > 0 ? logged : expected.total,
+    hasLogged: logged > 0,
+  }
+}
+
 export function totalMonthlyIncome(settings) {
   return incomeSummary(settings).total
 }

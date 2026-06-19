@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useAppSettings } from '../context/useAppSettings'
-import { useExpenses, useInvestments, useTrackerLogsBatch, useExpensesHistory } from '../lib/hooks'
+import { useExpenses, useIncome, useInvestments, useTrackerLogsBatch, useExpensesHistory } from '../lib/hooks'
 import { budgetLineAmount, fmt, getCurrentMonth } from '../lib/constants'
-import { incomeSummary } from '../lib/income'
+import { monthIncomeView } from '../lib/income'
 import { computeTrackerSummary, enabledTrackers, getTrackerIcon } from '../lib/trackers'
 import { buildSpendingProfile } from '../lib/spendingProfile'
 import { useSpendingGamification } from '../lib/useSpendingGamification'
@@ -38,9 +38,10 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function Dashboard() {
   const { settings } = useAppSettings()
   const { budget } = settings
-  const income = useMemo(() => incomeSummary(settings), [settings])
-  const monthlyIncome = income.total
   const [month, setMonth] = useState(getCurrentMonth())
+  const { entries: incomeEntries } = useIncome(month)
+  const income = useMemo(() => monthIncomeView(settings, incomeEntries), [settings, incomeEntries])
+  const monthlyIncome = income.basis
   const trackers = useMemo(() => enabledTrackers(settings.trackers), [settings.trackers])
   const trackerIds = useMemo(() => trackers.map((t) => t.id), [trackers])
   const { expenses, loading } = useExpenses(month)
@@ -135,16 +136,22 @@ export default function Dashboard() {
       <TrackReminderBanner />
 
       <div className="metric-grid">
+        <MetricCard
+          label="Received (logged)"
+          value={income.logged}
+          sub={income.hasLogged ? 'This month' : 'Log inflows on Income tab'}
+          color={income.hasLogged ? 'var(--green)' : 'var(--muted)'}
+        />
+        <MetricCard label="Expected (settings)" value={income.total} sub={`Salary ${fmt(income.salary)}`} />
         <MetricCard label="Primary salary" value={income.salary} />
         {income.extraTotal > 0 && (
           <MetricCard
-            label="Extra income"
+            label="Extra (settings)"
             value={income.extraTotal}
             sub={`${income.extraSources.length} source${income.extraSources.length === 1 ? '' : 's'}`}
             color="var(--green)"
           />
         )}
-        <MetricCard label="Total income" value={monthlyIncome} color="var(--green)" />
         <MetricCard label="Total spent" value={totalSpend} color={totalSpend > monthlyIncome * 0.8 ? 'var(--red)' : 'var(--text)'} />
         <MetricCard label="Remaining" value={remaining} color={remaining < 0 ? 'var(--red)' : 'var(--green)'} />
         <MetricCard label="Invested (month)" value={investedThisMonth} color="var(--accent)" />

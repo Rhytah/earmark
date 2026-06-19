@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, LineChart, Line, XAxis, YAxis } from 'recharts'
 import { useAppSettings } from '../context/useAppSettings'
-import { useExpensesRange, useInvestmentsRange, useSavingsSnapshot } from '../lib/hooks'
+import { useExpensesRange, useIncomeRange, useInvestmentsRange, useSavingsSnapshot } from '../lib/hooks'
 import { fmt, getCurrentMonth } from '../lib/constants'
-import { totalMonthlyIncome } from '../lib/income'
+import { sumLoggedIncome, totalMonthlyIncome } from '../lib/income'
 import { Card, MetricCard, SectionTitle, Spinner, MonthPicker } from '../components/UI'
 
 const PROJECT_MONTHS = 3
@@ -51,6 +51,7 @@ export default function Reports() {
   }, [rangeMode, customStart, customEnd, month, monthsBack])
 
   const { expenses, loading } = useExpensesRange(rangeStart, rangeEnd)
+  const { entries: incomeEntries, loading: incomeLoading } = useIncomeRange(rangeStart, rangeEnd)
   const { transactions: investmentTransactions, loading: investmentsLoading } = useInvestmentsRange(rangeStart, rangeEnd)
   const { snapshots, loading: snapshotsLoading } = useSavingsSnapshot()
 
@@ -245,9 +246,15 @@ export default function Reports() {
         (previousSnapshot.investment3_balance || 0)
       : 0
 
+    const loggedIncomeTotal = sumLoggedIncome(incomeEntries)
+    const expectedIncomeTotal = monthlyIncome * Math.max(months.length, 1)
+    const totalEarnings = loggedIncomeTotal > 0 ? loggedIncomeTotal : expectedIncomeTotal
+
     return {
       totalSpent,
-      totalEarnings: monthlyIncome * Math.max(months.length, 1),
+      totalEarnings,
+      loggedIncomeTotal,
+      expectedIncomeTotal,
       incomeAllocated: totalSpent + investmentOutflow,
       topCategory,
       byCategory,
@@ -272,7 +279,7 @@ export default function Reports() {
       emergencyFunded: byCategoryMap[emergency_category] || 0,
       monthCount: months.length || 1,
     }
-  }, [expenses, monthlyIncome, budget, snapshots, investments_category, emergency_category, investmentTransactions, month])
+  }, [expenses, incomeEntries, monthlyIncome, budget, snapshots, investments_category, emergency_category, investmentTransactions, month])
 
   const pieData = report.byCategory.slice(0, 6).map((c, i) => ({
     name: c.category,
@@ -322,7 +329,7 @@ export default function Reports() {
         </div>
       </Card>
 
-      {loading || snapshotsLoading || investmentsLoading ? (
+      {loading || incomeLoading || snapshotsLoading || investmentsLoading ? (
         <Spinner />
       ) : (
         <>

@@ -11,6 +11,7 @@ import TrackerDetail from './pages/TrackerDetail'
 import Goals from './pages/Goals'
 import Reports from './pages/Reports'
 import Investments from './pages/Investments'
+import Income from './pages/Income'
 import Profile from './pages/Profile'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
@@ -56,6 +57,7 @@ function AppRoutes({ theme, onToggleTheme }) {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/expenses" element={<Expenses />} />
+            <Route path="/income" element={<Income />} />
             <Route path="/trackers" element={<Trackers />} />
             <Route path="/trackers/:trackerId" element={<TrackerDetail />} />
             <Route path="/gym" element={<Navigate to="/trackers/gym" replace />} />

@@ -300,7 +300,8 @@ export default function Settings() {
       <Card style={{ marginBottom: '1rem' }}>
         <SectionTitle>App & income</SectionTitle>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.5 }}>
-          Set your primary salary plus any other regular monthly inflows. Dashboard and reports use the combined total.
+          Set your primary salary plus any other regular monthly inflows. Log actual receipts on the{' '}
+          <strong>Income</strong> tab when money arrives.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           <div style={fieldStyle}>
