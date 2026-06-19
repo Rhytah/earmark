@@ -267,8 +267,8 @@ export default function Settings() {
           </Btn>
         </div>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
-          Optional habit trackers — gym, reading, meditation, or anything you want. Only enabled trackers appear in the
-          nav. Link each to a budget line to see spend vs allowance.
+          Optional habit trackers — gym, reading, meditation, or anything you want. Link a budget line to
+          auto-count matching expenses. Only enabled trackers appear in the nav.
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
           {TRACKER_PRESETS.map((preset) => (
@@ -335,6 +335,9 @@ export default function Settings() {
                         </option>
                       ))}
                     </select>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
+                      Expenses in this category count toward the tracker.
+                    </span>
                   </div>
                   <div style={fieldStyle}>
                     <label style={labelStyle}>Cost per log (0 = free)</label>

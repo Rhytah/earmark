@@ -47,9 +47,10 @@ export default function Dashboard() {
         stats: computeTrackerSummary(tracker, logsByTracker[tracker.id] || [], {
           month,
           budgetAmount: budgetLineAmount(budget, tracker.budget_category),
+          expenses,
         }),
       })),
-    [trackers, logsByTracker, month, budget],
+    [trackers, logsByTracker, month, budget, expenses],
   )
 
   const { totalSpend, remaining, byCategory, chartData, otherSpend } = useMemo(() => {

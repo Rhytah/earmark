@@ -145,15 +145,73 @@ function countLogsInWeek(logs, referenceDate = new Date()) {
   }).length
 }
 
+/** Expenses that belong to a tracker via its linked budget category. */
+export function trackerExpenses(tracker, expenses) {
+  const cat = String(tracker?.budget_category || '').trim()
+  if (!cat) return []
+  const catLower = cat.toLowerCase()
+  return (expenses || []).filter((e) => String(e.category || '').trim().toLowerCase() === catLower)
+}
+
+/**
+ * Merge manual tracker logs with matching expenses (same budget category).
+ * One activity unit per calendar day; spend uses actual expense amounts when present.
+ */
+export function mergeTrackerActivity(tracker, logs, expenses) {
+  const matchedExpenses = trackerExpenses(tracker, expenses)
+  const logsByDate = new Map()
+  for (const log of logs || []) logsByDate.set(log.date, log)
+
+  const expensesByDate = new Map()
+  for (const exp of matchedExpenses) {
+    if (!expensesByDate.has(exp.date)) expensesByDate.set(exp.date, [])
+    expensesByDate.get(exp.date).push(exp)
+  }
+
+  const allDates = new Set([...logsByDate.keys(), ...expensesByDate.keys()])
+  const unitCost = Number(tracker?.unit_cost) || 0
+
+  const entries = [...allDates].sort().reverse().map((date) => {
+    const dayExpenses = expensesByDate.get(date) || []
+    const log = logsByDate.get(date) || null
+    const fromExpense = dayExpenses.length > 0
+    return {
+      date,
+      source: fromExpense && log ? 'both' : fromExpense ? 'expense' : 'log',
+      log,
+      expenses: dayExpenses,
+      amount: fromExpense
+        ? dayExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0)
+        : unitCost,
+    }
+  })
+
+  let spent = matchedExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0)
+  for (const date of allDates) {
+    if (!expensesByDate.has(date) && logsByDate.has(date)) spent += unitCost
+  }
+
+  return {
+    entries,
+    dates: allDates,
+    matchedExpenses,
+    spent,
+    logDates: new Set(logsByDate.keys()),
+    expenseDates: new Set(expensesByDate.keys()),
+  }
+}
+
 /** Stats for dashboard / summary cards. */
-export function computeTrackerSummary(tracker, logs, { month, budgetAmount = 0 }) {
-  const count = logs.length
+export function computeTrackerSummary(tracker, logs, { month, budgetAmount = 0, expenses = [] }) {
+  const activity = mergeTrackerActivity(tracker, logs, expenses)
+  const count = activity.dates.size
   const unitCost = Number(tracker.unit_cost) || 0
   const targetPerWeek = Math.max(1, Number(tracker.target_per_week) || 1)
   const unitLabel = tracker.unit_label || 'session'
   const isCurrentMonth = month === new Date().toISOString().slice(0, 7)
-  const weekCount = isCurrentMonth ? countLogsInWeek(logs) : null
-  const spent = count * unitCost
+  const pseudoLogs = [...activity.dates].map((date) => ({ date }))
+  const weekCount = isCurrentMonth ? countLogsInWeek(pseudoLogs) : null
+  const spent = activity.spent
   const unspent = Math.max(0, budgetAmount - spent)
   const maxUnits = unitCost > 0 && budgetAmount > 0 ? Math.floor(budgetAmount / unitCost) : null
   const weeksInMonth = 4
@@ -169,5 +227,7 @@ export function computeTrackerSummary(tracker, logs, { month, budgetAmount = 0 }
     maxUnits,
     unitLabel,
     isCurrentMonth,
+    expenseCount: activity.matchedExpenses.length,
+    manualCount: (logs || []).length,
   }
 }

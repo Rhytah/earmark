@@ -2,9 +2,9 @@ import { useState, useMemo } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { CheckCircle, Trash2, ChevronLeft } from 'lucide-react'
 import { useAppSettings } from '../context/useAppSettings'
-import { useTrackerLogs } from '../lib/hooks'
+import { useTrackerLogs, useExpenses } from '../lib/hooks'
 import { budgetLineAmount, fmt, getCurrentMonth } from '../lib/constants'
-import { findTracker } from '../lib/trackers'
+import { findTracker, computeTrackerSummary, mergeTrackerActivity } from '../lib/trackers'
 import { Card, MetricCard, ProgressBar, SectionTitle, Btn, Spinner, MonthPicker } from '../components/UI'
 import { format, parseISO, getDaysInMonth, getDay } from 'date-fns'
 
@@ -21,19 +21,35 @@ export default function TrackerDetail() {
 
   const [month, setMonth] = useState(getCurrentMonth())
   const { logs, loading, logEntry, removeLog } = useTrackerLogs(trackerId, month)
+  const { expenses, loading: expensesLoading } = useExpenses(month)
   const [logging, setLogging] = useState(false)
   const [deleting, setDeleting] = useState(null)
 
   const today = new Date().toISOString().split('T')[0]
 
+  const activity = useMemo(
+    () => (tracker ? mergeTrackerActivity(tracker, logs, expenses) : null),
+    [tracker, logs, expenses],
+  )
+
   const stats = useMemo(() => {
-    const count = logs.length
-    const spent = count * unitCost
-    const unspent = Math.max(0, budget - spent)
-    const maxUnits = unitCost > 0 ? Math.floor(budget / unitCost) : 0
-    const logDates = new Set(logs.map((s) => s.date))
-    return { count, spent, unspent, maxUnits, logDates }
-  }, [logs, budget, unitCost])
+    if (!tracker || !activity) {
+      return { count: 0, spent: 0, unspent: 0, maxUnits: 0, logDates: new Set() }
+    }
+    const summary = computeTrackerSummary(tracker, logs, {
+      month,
+      budgetAmount: budget,
+      expenses,
+    })
+    return {
+      count: summary.count,
+      spent: summary.spent,
+      unspent: summary.unspent,
+      maxUnits: summary.maxUnits ?? (unitCost > 0 ? Math.floor(budget / unitCost) : 0),
+      logDates: activity.dates,
+      expenseCount: summary.expenseCount,
+    }
+  }, [tracker, logs, expenses, activity, month, budget, unitCost])
 
   if (!tracker || !tracker.enabled) {
     return <Navigate to="/trackers" replace />
@@ -84,9 +100,14 @@ export default function TrackerDetail() {
               </>
             )}
             {unitCost <= 0 && tracker.budget_category && (
-              <> · linked to «{tracker.budget_category}» budget</>
+              <> · linked to «{tracker.budget_category}» expenses</>
             )}
           </p>
+          {tracker.budget_category && (
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+              Expenses in «{tracker.budget_category}» count automatically — manual logs fill gaps.
+            </p>
+          )}
         </div>
         <div className="page-header-actions">
           <MonthPicker value={month} onChange={setMonth} />
@@ -185,18 +206,18 @@ export default function TrackerDetail() {
       </Card>
 
       <Card>
-        <SectionTitle>Log</SectionTitle>
-        {loading ? (
+        <SectionTitle>Activity</SectionTitle>
+        {loading || expensesLoading ? (
           <Spinner />
-        ) : logs.length === 0 ? (
+        ) : !activity?.entries.length ? (
           <div style={{ color: 'var(--muted)', fontSize: 13, padding: '1rem 0' }}>
-            No {unitLabelPlural} logged yet.
+            No {unitLabelPlural} yet — log manually or add expenses in «{tracker.budget_category || 'this category'}».
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {logs.map((s, i) => (
+            {activity.entries.map((entry, i) => (
               <div
-                key={s.id}
+                key={entry.date}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -205,26 +226,38 @@ export default function TrackerDetail() {
                   borderTop: i > 0 ? '1px solid var(--border)' : 'none',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                   <CheckCircle size={15} color="var(--green)" />
-                  <span style={{ fontSize: 13 }}>{format(parseISO(s.date), 'EEEE, MMM d')}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontSize: 13 }}>{format(parseISO(entry.date), 'EEEE, MMM d')}</span>
+                    {entry.expenses.length > 0 && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                        {entry.expenses.map((e) => e.description).filter(Boolean).join(' · ') || 'Expense'}
+                        {entry.source === 'both' && ' · manual log'}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {unitCost > 0 && (
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>UGX {fmt(unitCost)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                  {entry.amount > 0 && (
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>UGX {fmt(entry.amount)}</span>
                   )}
-                  <button
-                    onClick={() => handleRemove(s.id)}
-                    disabled={deleting === s.id}
-                    style={{
-                      background: 'none',
-                      color: 'var(--muted)',
-                      padding: 4,
-                      opacity: deleting === s.id ? 0.4 : 1,
-                    }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {entry.source === 'expense' || entry.source === 'both' ? (
+                    <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>Expense</span>
+                  ) : (
+                    <button
+                      onClick={() => handleRemove(entry.log.id)}
+                      disabled={deleting === entry.log.id}
+                      style={{
+                        background: 'none',
+                        color: 'var(--muted)',
+                        padding: 4,
+                        opacity: deleting === entry.log.id ? 0.4 : 1,
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
