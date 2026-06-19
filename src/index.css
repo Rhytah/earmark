@@ -281,6 +281,9 @@ body {
 .nav-sidebar {
   width: var(--nav-sidebar-width);
   min-height: 100dvh;
+  max-height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);

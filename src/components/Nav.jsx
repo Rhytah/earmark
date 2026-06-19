@@ -26,8 +26,8 @@ const coreLinks = [
   { to: '/expenses', icon: Receipt, label: 'Expenses' },
   { to: '/income', icon: Wallet, label: 'Income' },
   { to: '/goals', icon: TrendingUp, label: 'Goals' },
-  { to: '/reports', icon: PieChart, label: 'Reports' },
   { to: '/investments', icon: Landmark, label: 'Investments' },
+  { to: '/reports', icon: PieChart, label: 'Reports' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

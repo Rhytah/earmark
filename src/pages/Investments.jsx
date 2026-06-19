@@ -1,14 +1,34 @@
 import { useMemo, useState } from 'react'
-import { Upload, Trash2, Sparkles } from 'lucide-react'
-import { useInsurancePolicies, useInvestmentsRange } from '../lib/hooks'
 import {
-  parseInvestmentStatementCsv,
+  Upload,
+  Trash2,
+  Sparkles,
+  Plus,
+  X,
+  ChevronDown,
+  ChevronUp,
+  TrendingUp,
+  ArrowDownLeft,
+  ArrowUpRight,
+} from 'lucide-react'
+import { useInsurancePolicies, useInvestments } from '../lib/hooks'
+import {
   parseInvestmentStatementFile,
   parseInvestmentStatementInput,
 } from '../lib/investmentStatements'
 import { analyzeInsuranceDocuments, savePolicyAnalysis, uploadInsuranceDocs } from '../lib/insuranceService'
+import {
+  formatActivityDate,
+  identifyInvestmentProvider,
+  monthInvestmentsView,
+  providerFilterOptions,
+  TX_COLORS,
+  TX_LABELS,
+  TX_TYPES,
+  txDisplayAmount,
+} from '../lib/investmentsView'
 import { fmt, getCurrentMonth } from '../lib/constants'
-import { Btn, Card, EmptyState, MetricCard, MonthPicker, SectionTitle, Spinner } from '../components/UI'
+import { Badge, Btn, Card, EmptyState, MetricCard, MonthPicker, SectionTitle, Spinner } from '../components/UI'
 
 function UploadModal({ onClose, onImport }) {
   const [text, setText] = useState('')
@@ -19,6 +39,7 @@ function UploadModal({ onClose, onImport }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [fileBusy, setFileBusy] = useState(false)
+  const [showPaste, setShowPaste] = useState(false)
 
   const { valid, invalid } = useMemo(() => {
     if (!text.trim()) return { valid: [], invalid: [] }
@@ -50,8 +71,6 @@ function UploadModal({ onClose, onImport }) {
         setFileParsedRows([])
         setFileParsedInvalid(fileInvalid)
       } else {
-        // Preserve structured parsed fields (interest/deposit/balance/etc.)
-        // instead of flattening to CSV columns.
         setFileParsedRows(fileValid)
         setFileParsedInvalid(fileInvalid)
       }
@@ -71,12 +90,19 @@ function UploadModal({ onClose, onImport }) {
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <Card className="modal-card" style={{ maxWidth: 620 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>Upload investment statement</div>
-        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
-          Drag & drop or choose a file (PDF, CSV, TXT, TSV), or paste CSV rows with columns like date, asset/symbol,
-          type, amount, units, price, notes.
+      <Card className="modal-card" style={{ maxWidth: 560 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Import statement</span>
+          <button type="button" onClick={onClose} style={{ background: 'none', color: 'var(--muted)', padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 1rem', lineHeight: 1.5 }}>
+          Drop a PDF or CSV from Sanlam, Prudential, or your broker. We extract deposits, interest, withdrawals, and
+          balances automatically.
         </p>
+
         <div
           onDragOver={(e) => {
             e.preventDefault()
@@ -85,70 +111,187 @@ function UploadModal({ onClose, onImport }) {
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => void onDrop(e)}
           style={{
-            border: `1px dashed ${dragOver ? 'var(--accent)' : 'var(--border2)'}`,
-            borderRadius: 'var(--radius-sm)',
-            padding: '0.75rem',
-            marginBottom: 10,
+            border: `2px dashed ${dragOver ? 'var(--accent)' : 'var(--border2)'}`,
+            borderRadius: 'var(--radius)',
+            padding: '1.75rem 1rem',
+            marginBottom: 12,
             background: dragOver ? 'var(--accent-dim)' : 'var(--surface2)',
+            textAlign: 'center',
           }}
         >
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-              {fileBusy ? 'Reading file…' : fileName ? `Selected: ${fileName}` : 'Drop file here or choose one'}
-            </span>
-            <label style={{ display: 'inline-flex' }}>
-              <input
-                type="file"
-                accept=".pdf,.csv,.txt,.tsv,text/csv,text/plain,application/pdf"
-                onChange={(e) => void handleFile(e.target.files?.[0])}
-                style={{ display: 'none' }}
-              />
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--text)',
-                  border: '1px solid var(--border2)',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--surface-solid)',
-                  padding: '0.45rem 0.65rem',
-                  cursor: 'pointer',
-                }}
-              >
-                Choose file
-              </span>
-            </label>
+          <Upload size={28} style={{ color: 'var(--accent)', marginBottom: 8 }} />
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+            {fileBusy ? 'Reading file…' : 'Drag & drop your statement'}
           </div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+            {fileName ? `Selected: ${fileName}` : 'PDF, CSV, TXT, or TSV'}
+          </div>
+          <label style={{ display: 'inline-flex' }}>
+            <input
+              type="file"
+              accept=".pdf,.csv,.txt,.tsv,text/csv,text/plain,application/pdf"
+              onChange={(e) => void handleFile(e.target.files?.[0])}
+              style={{ display: 'none' }}
+            />
+            <span className="ui-btn" style={{ cursor: 'pointer', fontSize: 13 }}>
+              Choose file
+            </span>
+          </label>
         </div>
-        <textarea
-          rows={10}
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value)
-            // Manual edits switch back to CSV parser path.
-            setFileParsedRows(null)
-            setFileParsedInvalid([])
+
+        <button
+          type="button"
+          onClick={() => setShowPaste((v) => !v)}
+          style={{
+            background: 'none',
+            color: 'var(--muted)',
+            fontSize: 12,
+            fontWeight: 600,
+            padding: '4px 0',
+            marginBottom: showPaste ? 8 : 0,
           }}
-          placeholder="Paste CSV statement data here..."
-          style={{ minHeight: 180, resize: 'vertical', fontFamily: 'ui-monospace, monospace', fontSize: 11 }}
-        />
-        <div style={{ marginTop: 10, display: 'flex', gap: 14, fontSize: 13 }}>
-          <span style={{ color: effectiveValid.length ? 'var(--green)' : 'var(--muted)' }}>{effectiveValid.length} valid rows</span>
-          {!!effectiveInvalid.length && <span style={{ color: 'var(--amber)' }}>{effectiveInvalid.length} invalid rows</span>}
-        </div>
+        >
+          {showPaste ? 'Hide' : 'Advanced: paste CSV instead'}
+        </button>
+
+        {showPaste && (
+          <textarea
+            rows={8}
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value)
+              setFileParsedRows(null)
+              setFileParsedInvalid([])
+            }}
+            placeholder="date, asset, type, amount, notes…"
+            style={{ minHeight: 140, resize: 'vertical', fontFamily: 'ui-monospace, monospace', fontSize: 11, width: '100%' }}
+          />
+        )}
+
+        {(effectiveValid.length > 0 || effectiveInvalid.length > 0) && (
+          <div style={{ marginTop: 10, display: 'flex', gap: 14, fontSize: 13 }}>
+            <span style={{ color: effectiveValid.length ? 'var(--green)' : 'var(--muted)' }}>
+              {effectiveValid.length} transaction{effectiveValid.length === 1 ? '' : 's'} ready
+            </span>
+            {!!effectiveInvalid.length && (
+              <span style={{ color: 'var(--amber)' }}>{effectiveInvalid.length} skipped</span>
+            )}
+          </div>
+        )}
+
         {!!effectiveInvalid.length && (
-          <ul style={{ marginTop: 8, maxHeight: 110, overflow: 'auto', color: 'var(--red)', fontSize: 12, paddingLeft: '1.1rem' }}>
-            {effectiveInvalid.slice(0, 20).map((x) => (
+          <ul style={{ marginTop: 8, maxHeight: 88, overflow: 'auto', color: 'var(--red)', fontSize: 12, paddingLeft: '1.1rem' }}>
+            {effectiveInvalid.slice(0, 8).map((x) => (
               <li key={`${x.line}-${x.reason}`}>Line {x.line}: {x.reason}</li>
             ))}
           </ul>
         )}
+
         {err && <div style={{ color: 'var(--red)', marginTop: 8, fontSize: 12 }}>{err}</div>}
-        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
           <Btn onClick={() => void handleImport()} disabled={busy || fileBusy || !effectiveValid.length}>
-            {busy ? 'Importing…' : `Import ${effectiveValid.length} row(s)`}
+            {busy ? 'Importing…' : `Import ${effectiveValid.length || ''}`}
           </Btn>
-          <Btn variant="ghost" onClick={onClose} disabled={busy}>Cancel</Btn>
+          <Btn variant="ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </Btn>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function AddTransactionModal({ onClose, onAdd }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const [form, setForm] = useState({
+    date: today,
+    asset: '',
+    tx_type: 'deposit',
+    amount: '',
+    notes: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
+  const handleSubmit = async () => {
+    const amount = Number(form.amount)
+    if (!form.asset.trim()) {
+      setError('Enter an investment or policy name')
+      return
+    }
+    if (!amount || amount <= 0) {
+      setError('Enter a valid amount')
+      return
+    }
+    setSaving(true)
+    setError('')
+    const signed = ['buy', 'withdrawal', 'fee'].includes(form.tx_type) ? -Math.abs(amount) : Math.abs(amount)
+    const { error: saveError } = await onAdd([
+      {
+        date: form.date,
+        asset: form.asset.trim(),
+        tx_type: form.tx_type,
+        amount: signed,
+        notes: form.notes.trim() || 'Manual entry',
+        source: 'manual',
+      },
+    ])
+    setSaving(false)
+    if (saveError) setError(saveError.message ?? 'Could not save')
+    else onClose()
+  }
+
+  const field = (label, children) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>{label}</label>
+      {children}
+    </div>
+  )
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <Card className="modal-card" style={{ maxWidth: 440 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Log investment activity</span>
+          <button type="button" onClick={onClose} style={{ background: 'none', color: 'var(--muted)', padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {field('Date', <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />)}
+          {field(
+            'Investment / policy',
+            <input
+              placeholder="e.g. Sanlam Income Fund, Prudential Policy"
+              value={form.asset}
+              onChange={(e) => set('asset', e.target.value)}
+            />,
+          )}
+          {field(
+            'What happened?',
+            <select value={form.tx_type} onChange={(e) => set('tx_type', e.target.value)}>
+              {TX_TYPES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>,
+          )}
+          {field(
+            'Amount (UGX)',
+            <input type="number" min={0} placeholder="0" value={form.amount} onChange={(e) => set('amount', e.target.value)} />,
+          )}
+          {field(
+            'Note (optional)',
+            <input placeholder="e.g. Monthly premium, bonus certificate" value={form.notes} onChange={(e) => set('notes', e.target.value)} />,
+          )}
+          {error && <div style={{ color: 'var(--red)', fontSize: 12 }}>{error}</div>}
+          <Btn onClick={() => void handleSubmit()} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Btn>
         </div>
       </Card>
     </div>
@@ -195,23 +338,34 @@ function InsuranceAnalyzerModal({ onClose, onSaved }) {
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <Card className="modal-card" style={{ maxWidth: 680 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>AI Insurance Analyzer</div>
-        <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
-          Upload receipts/statements/bonus certificates. AI extracts policy and bonus details.
+      <Card className="modal-card" style={{ maxWidth: 560 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Analyze insurance documents</span>
+          <button type="button" onClick={onClose} style={{ background: 'none', color: 'var(--muted)', padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 1rem', lineHeight: 1.5 }}>
+          Upload policy statements or bonus certificates. AI extracts sum assured, bonuses, and policy numbers.
         </p>
-        <input
-          type="file"
-          accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt"
-          multiple
-          onChange={(e) => setFiles(Array.from(e.target.files || []))}
-        />
+        <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt" multiple onChange={(e) => setFiles(Array.from(e.target.files || []))} />
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>{files.length} file(s) selected</div>
         {result?.policies?.length > 0 && (
-          <div style={{ marginTop: 10, maxHeight: 180, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 8 }}>
+          <div
+            style={{
+              marginTop: 10,
+              maxHeight: 180,
+              overflow: 'auto',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: 8,
+            }}
+          >
             {result.policies.map((p, i) => (
               <div key={`${p.policyNumber || p.insurer}-${i}`} style={{ padding: '6px 0', borderTop: i ? '1px solid var(--border)' : 'none' }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{p.insurer || 'Policy'} {p.policyNumber ? `(${p.policyNumber})` : ''}</div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>
+                  {p.insurer || 'Policy'} {p.policyNumber ? `(${p.policyNumber})` : ''}
+                </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                   Sum assured: UGX {fmt(Number(p.sumAssured || 0))} · Bonuses: {(p.bonuses || []).length}
                 </div>
@@ -220,102 +374,164 @@ function InsuranceAnalyzerModal({ onClose, onSaved }) {
           </div>
         )}
         {error && <div style={{ marginTop: 10, color: 'var(--red)', fontSize: 12 }}>{error}</div>}
-        <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+        <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
           <Btn onClick={() => void handleAnalyze()} disabled={busy || !files.length}>
-            {busy ? 'Working…' : 'Analyze documents'}
+            {busy ? 'Working…' : 'Analyze'}
           </Btn>
           <Btn variant="success" onClick={() => void handleSave()} disabled={busy || !(result?.policies?.length > 0)}>
-            Save extracted policies
+            Save policies
           </Btn>
-          <Btn variant="ghost" onClick={onClose} disabled={busy}>Cancel</Btn>
+          <Btn variant="ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </Btn>
         </div>
       </Card>
     </div>
   )
 }
 
+function ActivityRow({ tx, deleting, onDelete }) {
+  const [open, setOpen] = useState(false)
+  const signed = txDisplayAmount(tx)
+  const color = signed >= 0 ? 'var(--green)' : 'var(--red)'
+  const prefix = signed >= 0 ? '+' : '−'
+  const hasDetails =
+    tx.deposit_amount != null ||
+    tx.interest_amount != null ||
+    tx.withdrawal_amount != null ||
+    tx.withholding_tax_amount != null ||
+    tx.balance_amount != null ||
+    tx.trans_no
+
+  return (
+    <div style={{ padding: '12px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 'var(--radius-sm)',
+            background: `${TX_COLORS[tx.tx_type] || 'var(--accent)'}18`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          {signed >= 0 ? (
+            <ArrowDownLeft size={15} style={{ color: TX_COLORS[tx.tx_type] || 'var(--green)' }} />
+          ) : (
+            <ArrowUpRight size={15} style={{ color: TX_COLORS[tx.tx_type] || 'var(--red)' }} />
+          )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>{tx.description?.trim() || tx.asset}</span>
+            <Badge color={TX_COLORS[tx.tx_type] || 'var(--muted)'}>{TX_LABELS[tx.tx_type] || tx.tx_type}</Badge>
+            {tx.source === 'statement_upload' && (
+              <Badge color="var(--accent)" bg="var(--accent-dim)">
+                Statement
+              </Badge>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+            {tx.asset}
+            {tx.notes && tx.notes !== tx.description ? ` · ${tx.notes}` : ''}
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color }}>
+            {prefix} UGX {fmt(Math.abs(signed))}
+          </span>
+          {hasDetails && (
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              style={{ background: 'none', color: 'var(--muted)', padding: 4 }}
+              aria-label={open ? 'Hide details' : 'Show details'}
+            >
+              {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDelete(tx.id)}
+            disabled={deleting === tx.id}
+            style={{ background: 'none', color: 'var(--muted)', padding: 4, opacity: deleting === tx.id ? 0.4 : 1 }}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+      {open && hasDetails && (
+        <div
+          style={{
+            marginTop: 10,
+            marginLeft: 42,
+            padding: '8px 10px',
+            background: 'var(--surface2)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 11,
+            color: 'var(--muted)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+            gap: 8,
+          }}
+        >
+          {tx.trans_no && <div>Ref: {tx.trans_no}</div>}
+          {tx.deposit_amount != null && <div>Deposit: UGX {fmt(tx.deposit_amount)}</div>}
+          {tx.interest_amount != null && <div>Interest: UGX {fmt(tx.interest_amount)}</div>}
+          {tx.withdrawal_amount != null && <div>Withdrawal: UGX {fmt(tx.withdrawal_amount)}</div>}
+          {tx.withholding_tax_amount != null && <div>Tax: UGX {fmt(tx.withholding_tax_amount)}</div>}
+          {tx.balance_amount != null && <div>Balance: UGX {fmt(tx.balance_amount)}</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabButton({ active, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '0.5rem 0.9rem',
+        borderRadius: 'var(--radius-sm)',
+        border: '1px solid var(--border2)',
+        background: active ? 'var(--accent-dim)' : 'var(--surface2)',
+        color: active ? 'var(--accent)' : 'var(--text)',
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
 export default function Investments() {
   const [month, setMonth] = useState(getCurrentMonth())
-  const [rangeMode, setRangeMode] = useState('rolling')
-  const [monthsBack, setMonthsBack] = useState(12)
-  const [customStart, setCustomStart] = useState(`${new Date().getFullYear()}-01-01`)
-  const [customEnd, setCustomEnd] = useState(new Date().toISOString().slice(0, 10))
-  const [tab, setTab] = useState('combined')
-  const [investmentTab, setInvestmentTab] = useState('all')
+  const [section, setSection] = useState('overview')
+  const [providerFilter, setProviderFilter] = useState('all')
   const [showUpload, setShowUpload] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
   const [showInsuranceAnalyzer, setShowInsuranceAnalyzer] = useState(false)
   const [deleting, setDeleting] = useState(null)
-  const { rangeStart, rangeEnd, rangeLabel } = useMemo(() => {
-    if (rangeMode === 'all') return { rangeStart: null, rangeEnd: null, rangeLabel: 'all time' }
-    if (rangeMode === 'custom') {
-      return {
-        rangeStart: customStart || null,
-        rangeEnd: customEnd || null,
-        rangeLabel: customStart && customEnd ? `${customStart} to ${customEnd}` : 'custom range',
-      }
-    }
-    const [endYear, endMonthNum] = month.split('-').map(Number)
-    const startDate = new Date(endYear, endMonthNum - monthsBack, 1)
-    const start = startDate.toISOString().slice(0, 10)
-    const endDay = new Date(endYear, endMonthNum, 0).getDate()
-    const end = `${endYear}-${String(endMonthNum).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
-    return { rangeStart: start, rangeEnd: end, rangeLabel: `last ${monthsBack} months` }
-  }, [rangeMode, customStart, customEnd, month, monthsBack])
 
-  const { transactions, loading, addTransactionsBulk, deleteTransaction } = useInvestmentsRange(rangeStart, rangeEnd)
+  const { transactions, loading, addTransactionsBulk, deleteTransaction } = useInvestments(month)
   const { policies: insurancePolicies, loading: insuranceLoading, refetch: refetchInsurance } = useInsurancePolicies()
 
-  const identifyInvestment = (asset) => {
-    const text = String(asset || '').toLowerCase()
-    if (text.includes('sanlam')) return 'Sanlam'
-    if (text.includes('prudential') || text.includes('pru')) return 'Prudential'
-    const compact = String(asset || '').trim()
-    if (!compact) return 'Other'
-    return compact.split(/\s+/).slice(0, 2).join(' ')
-  }
+  const view = useMemo(() => monthInvestmentsView(transactions), [transactions])
+  const filterOptions = useMemo(() => providerFilterOptions(transactions), [transactions])
 
-  const investmentTabs = useMemo(() => {
-    const map = new Map()
-    transactions.forEach((t) => {
-      const label = identifyInvestment(t.asset)
-      if (!map.has(label)) map.set(label, label.toLowerCase())
-    })
-    return [['all', 'All'], ...Array.from(map.entries()).map(([label, id]) => [id, label])]
-  }, [transactions])
-
-  const filteredTransactions = useMemo(() => {
-    if (investmentTab === 'all') return transactions
-    return transactions.filter((t) => identifyInvestment(t.asset).toLowerCase() === investmentTab)
-  }, [transactions, investmentTab])
-
-  const overview = useMemo(() => {
-    const totals = { buy: 0, sell: 0, dividend: 0, fee: 0, deposit: 0, withdrawal: 0 }
-    const statementTotals = { deposit: 0, interest: 0, withdrawal: 0, tax: 0 }
-    const byAsset = {}
-    filteredTransactions.forEach((t) => {
-      totals[t.tx_type] = (totals[t.tx_type] || 0) + Number(t.amount || 0)
-      statementTotals.deposit += Number(t.deposit_amount || 0)
-      statementTotals.interest += Number(t.interest_amount || 0)
-      statementTotals.withdrawal += Number(t.withdrawal_amount || 0)
-      statementTotals.tax += Number(t.withholding_tax_amount || 0)
-      byAsset[t.asset] = (byAsset[t.asset] || 0) + Number(t.amount || 0)
-    })
-    const closingBalance = transactions.find((t) => t.balance_amount != null)?.balance_amount ?? null
-    const netCashFlow = (totals.sell + totals.dividend + totals.deposit) - (totals.buy + totals.fee + totals.withdrawal)
-    const topAssets = Object.entries(byAsset)
-      .map(([asset, amount]) => ({ asset, amount }))
-      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
-      .slice(0, 5)
-    const statementRows = filteredTransactions.filter(
-      (t) => t.source === 'statement_upload'
-        || t.deposit_amount != null
-        || t.interest_amount != null
-        || t.withdrawal_amount != null
-        || t.withholding_tax_amount != null
-        || t.balance_amount != null,
+  const activityTransactions = useMemo(() => {
+    if (providerFilter === 'all') return transactions
+    return transactions.filter(
+      (t) => identifyInvestmentProvider(t.asset).toLowerCase() === providerFilter,
     )
-    return { totals, statementTotals, netCashFlow, topAssets, closingBalance, statementRows }
-  }, [filteredTransactions])
+  }, [transactions, providerFilter])
 
   const insuranceSummary = useMemo(() => {
     const totalSumAssured = insurancePolicies.reduce((s, p) => s + Number(p.sum_assured || 0), 0)
@@ -332,243 +548,264 @@ export default function Investments() {
     setDeleting(null)
   }
 
+  const groupedActivity = useMemo(() => {
+    const grouped = {}
+    for (const t of activityTransactions) {
+      const key = String(t.date)
+      if (!grouped[key]) grouped[key] = []
+      grouped[key].push(t)
+    }
+    return grouped
+  }, [activityTransactions])
+
+  const monthLabel = useMemo(() => {
+    const [y, m] = month.split('-').map(Number)
+    return new Date(y, m - 1, 1).toLocaleDateString('en-UG', { month: 'long', year: 'numeric' })
+  }, [month])
+
   return (
     <div className="page">
       <header className="page-header">
         <div>
           <h1 className="page-title">Investments</h1>
-          <p className="page-subtitle">Upload statements and track your investment activity</p>
+          <p className="page-subtitle">
+            {monthLabel}:{' '}
+            <span style={{ color: view.netFlow >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
+              {view.netFlow >= 0 ? '+' : '−'} UGX {fmt(Math.abs(view.netFlow))} net
+            </span>
+            {view.closingBalance != null && (
+              <span style={{ color: 'var(--muted)', fontWeight: 400 }}>
+                {' '}
+                · balance UGX {fmt(view.closingBalance)}
+              </span>
+            )}
+          </p>
         </div>
-        <div
-          className="page-header-actions"
-          style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}
-        >
-          <select value={rangeMode} onChange={(e) => setRangeMode(e.target.value)} style={{ minWidth: 0 }}>
-            <option value="rolling">Rolling months</option>
-            <option value="custom">Custom date range</option>
-            <option value="all">All time</option>
-          </select>
-          {rangeMode === 'rolling' && (
-            <>
-              <MonthPicker value={month} onChange={setMonth} />
-              <select value={monthsBack} onChange={(e) => setMonthsBack(Number(e.target.value))} style={{ minWidth: 0 }}>
-                <option value={3}>Last 3 months</option>
-                <option value={6}>Last 6 months</option>
-                <option value={12}>Last 12 months</option>
-                <option value={24}>Last 24 months</option>
-              </select>
-            </>
-          )}
-          {rangeMode === 'custom' && (
-            <>
-              <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
-              <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
-            </>
-          )}
-          <Btn onClick={() => setShowUpload(true)} style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
-            <Upload size={15} /> Upload statement
+        <div className="page-header-actions">
+          <MonthPicker value={month} onChange={setMonth} />
+          <Btn variant="ghost" onClick={() => setShowUpload(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Upload size={15} /> Import
+          </Btn>
+          <Btn onClick={() => setShowAdd(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <Plus size={15} /> Add
           </Btn>
         </div>
       </header>
 
       <Card style={{ marginBottom: '1rem' }}>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-          Active investment range: <strong style={{ color: 'var(--text)' }}>{rangeLabel}</strong>
-        </div>
-      </Card>
-
-      <Card style={{ marginBottom: '1rem' }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[
-            ['combined', 'Combined'],
-            ['statements', 'Statements'],
-            ['all', 'All Activity'],
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              style={{
-                padding: '0.45rem 0.75rem',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border2)',
-                background: tab === id ? 'var(--accent-dim)' : 'var(--surface2)',
-                color: tab === id ? 'var(--accent)' : 'var(--text)',
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      <Card style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {investmentTabs.map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setInvestmentTab(id)}
-              style={{
-                padding: '0.45rem 0.75rem',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border2)',
-                background: investmentTab === id ? 'var(--accent-dim)' : 'var(--surface2)',
-                color: investmentTab === id ? 'var(--accent)' : 'var(--text)',
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              {label}
-            </button>
-          ))}
+          <TabButton active={section === 'overview'} onClick={() => setSection('overview')}>
+            Overview
+          </TabButton>
+          <TabButton active={section === 'activity'} onClick={() => setSection('activity')}>
+            Activity
+          </TabButton>
+          <TabButton active={section === 'insurance'} onClick={() => setSection('insurance')}>
+            Insurance
+          </TabButton>
         </div>
       </Card>
 
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} onImport={addTransactionsBulk} />}
+      {showAdd && <AddTransactionModal onClose={() => setShowAdd(false)} onAdd={addTransactionsBulk} />}
       {showInsuranceAnalyzer && (
-        <InsuranceAnalyzerModal
-          onClose={() => setShowInsuranceAnalyzer(false)}
-          onSaved={() => void refetchInsurance()}
-        />
+        <InsuranceAnalyzerModal onClose={() => setShowInsuranceAnalyzer(false)} onSaved={() => void refetchInsurance()} />
       )}
 
-      <Card style={{ marginBottom: '1rem' }}>
-        <SectionTitle>Insurance policies (AI extracted)</SectionTitle>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-          <Btn onClick={() => setShowInsuranceAnalyzer(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Sparkles size={15} /> Analyze insurance documents
-          </Btn>
-        </div>
-        {insuranceLoading ? (
-          <Spinner />
-        ) : (
-          <div className="metric-grid" style={{ marginBottom: 0 }}>
-            <MetricCard label="Policies" value={insurancePolicies.length} prefix="" />
-            <MetricCard label="Total sum assured" value={insuranceSummary.totalSumAssured} />
-            <MetricCard label="Total bonuses" value={insuranceSummary.totalBonuses} color="var(--green)" />
-            <MetricCard label="Projected payout" value={insuranceSummary.totalProjected} color="var(--accent)" />
+      {loading ? (
+        <Spinner />
+      ) : section === 'overview' ? (
+        <>
+          <div className="metric-grid" style={{ marginBottom: '1.5rem' }}>
+            <MetricCard
+              label="Latest balance"
+              value={view.closingBalance ?? 0}
+              sub={view.closingBalance != null ? 'From most recent statement' : 'Upload a statement to see balance'}
+              color="var(--accent)"
+            />
+            <MetricCard label="Money in" value={view.moneyIn} sub="Deposits, interest & sales" color="var(--green)" />
+            <MetricCard label="Money out" value={view.moneyOut} sub="Purchases, withdrawals & fees" color="var(--amber)" />
+            <MetricCard label="Contributions" value={view.contributions} sub="New deposits only" color="var(--teal)" />
           </div>
-        )}
-      </Card>
 
-      {tab !== 'all' ? (
-        <div className="metric-grid">
-          <MetricCard label="Deposits" value={overview.statementTotals.deposit || overview.totals.deposit} />
-          <MetricCard label="Interest" value={overview.statementTotals.interest || overview.totals.dividend} color="var(--green)" />
-          <MetricCard label="Withdrawals" value={overview.statementTotals.withdrawal || overview.totals.withdrawal} color="var(--amber)" />
-          <MetricCard label="Withholding tax" value={overview.statementTotals.tax || overview.totals.fee} color="var(--red)" />
-          <MetricCard label="Net cash flow" value={overview.netCashFlow} color={overview.netCashFlow < 0 ? 'var(--red)' : 'var(--green)'} />
-          <MetricCard label="Closing balance" value={overview.closingBalance || 0} color="var(--accent)" />
-        </div>
-      ) : (
-        <div className="metric-grid">
-          <MetricCard label="Buy volume" value={overview.totals.buy} />
-          <MetricCard label="Sell volume" value={overview.totals.sell} />
-          <MetricCard label="Dividend inflow" value={overview.totals.dividend} color="var(--green)" />
-          <MetricCard label="Fees/tax" value={overview.totals.fee} color="var(--red)" />
-          <MetricCard label="Deposits" value={overview.totals.deposit} />
-          <MetricCard label="Withdrawals" value={overview.totals.withdrawal} color="var(--amber)" />
-        </div>
-      )}
-
-      {tab !== 'statements' && (
-        <Card style={{ marginBottom: '1.5rem' }}>
-          <SectionTitle>Top assets by activity</SectionTitle>
-          {overview.topAssets.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--muted)' }}>No activity in selected range.</div>
+          {view.providers.length === 0 ? (
+            <EmptyState
+              icon="📈"
+              message="No investment activity this month. Import a statement or add a contribution manually."
+            />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {overview.topAssets.map((x) => (
-                <div key={x.asset} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>{x.asset}</span>
-                  <strong>UGX {fmt(x.amount)}</strong>
-                </div>
+            <Card>
+              <SectionTitle>By investment</SectionTitle>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                {view.providers.map((p) => (
+                  <div
+                    key={p.provider}
+                    style={{
+                      background: 'var(--surface2)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '1rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <TrendingUp size={16} style={{ color: 'var(--accent)' }} />
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{p.provider}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
+                      {p.count} transaction{p.count === 1 ? '' : 's'} this month
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 8 }}>
+                      <span style={{ color: 'var(--muted)' }}>In</span>
+                      <strong style={{ color: 'var(--green)' }}>UGX {fmt(p.inflow)}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 4 }}>
+                      <span style={{ color: 'var(--muted)' }}>Out</span>
+                      <strong style={{ color: 'var(--amber)' }}>UGX {fmt(p.outflow)}</strong>
+                    </div>
+                    {p.latestBalance != null && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          paddingTop: 10,
+                          borderTop: '1px solid var(--border)',
+                          fontSize: 12,
+                          color: 'var(--muted)',
+                        }}
+                      >
+                        Balance: <strong style={{ color: 'var(--text)' }}>UGX {fmt(p.latestBalance)}</strong>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </>
+      ) : section === 'activity' ? (
+        <>
+          {filterOptions.length > 1 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
+              {filterOptions.map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setProviderFilter(id)}
+                  style={{
+                    padding: '0.35rem 0.7rem',
+                    borderRadius: 'var(--radius-pill)',
+                    border: '1px solid var(--border2)',
+                    background: providerFilter === id ? 'var(--accent-dim)' : 'transparent',
+                    color: providerFilter === id ? 'var(--accent)' : 'var(--muted)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
               ))}
             </div>
           )}
-        </Card>
-      )}
 
-      <Card>
-        <SectionTitle>
-          {tab === 'statements' ? 'Statement transactions' : tab === 'all' ? 'All investment activity' : 'Imported transactions'}
-        </SectionTitle>
-        {loading ? <Spinner /> : (tab === 'statements' ? overview.statementRows : filteredTransactions).length === 0 ? (
-          <EmptyState icon="📈" message="No investment transactions yet. Upload a statement to get started." />
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <div style={{ minWidth: 980, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '90px 100px 1.4fr 80px 110px 100px 100px 100px 100px 100px 40px',
-                  gap: 10,
-                  color: 'var(--muted)',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: '0.04em',
-                  textTransform: 'uppercase',
-                  paddingBottom: 6,
-                  borderBottom: '1px solid var(--border)',
-                }}
-              >
-                <div>Date</div>
-                <div>Trans #</div>
-                <div>Asset / Description</div>
-                <div>Type</div>
-                <div>Net</div>
-                <div>Deposit</div>
-                <div>Interest</div>
-                <div>Withdraw</div>
-                <div>Tax</div>
-                <div>Balance</div>
-                <div />
-              </div>
-              {(tab === 'statements' ? overview.statementRows : filteredTransactions).map((t, i) => (
-                <div
-                  key={t.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '90px 100px 1.4fr 80px 110px 100px 100px 100px 100px 100px 40px',
-                    gap: 10,
-                    alignItems: 'center',
-                    borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                    paddingTop: i > 0 ? 8 : 0,
-                    fontSize: 12,
-                  }}
-                >
-                  <div style={{ color: 'var(--muted)' }}>{t.date}</div>
-                  <div style={{ color: 'var(--muted)' }}>{t.trans_no || '—'}</div>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{t.asset}</div>
-                    <div style={{ color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {t.description || t.notes}
+          {activityTransactions.length === 0 ? (
+            <EmptyState icon="📋" message="No transactions this month. Import a statement or add one manually." />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {Object.entries(groupedActivity)
+                .sort(([a], [b]) => b.localeCompare(a))
+                .map(([date, items]) => {
+                  const dayTotal = items.reduce((s, t) => s + txDisplayAmount(t), 0)
+                  return (
+                    <div key={date}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: 'var(--muted)',
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          marginBottom: 8,
+                        }}
+                      >
+                        {formatActivityDate(date)}
+                        <span
+                          style={{
+                            marginLeft: 8,
+                            color: dayTotal >= 0 ? 'var(--green)' : 'var(--red)',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {dayTotal >= 0 ? '+' : '−'} UGX {fmt(Math.abs(dayTotal))}
+                        </span>
+                      </div>
+                      <Card style={{ padding: 0, overflow: 'hidden' }}>
+                        {items.map((tx, i) => (
+                          <div key={tx.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                            <ActivityRow tx={tx} deleting={deleting} onDelete={handleDelete} />
+                          </div>
+                        ))}
+                      </Card>
                     </div>
-                  </div>
-                  <div style={{ textTransform: 'capitalize' }}>{t.tx_type}</div>
-                  <div style={{ fontWeight: 700 }}>UGX {fmt(t.amount)}</div>
-                  <div style={{ color: 'var(--muted)' }}>{t.deposit_amount ? fmt(t.deposit_amount) : '—'}</div>
-                  <div style={{ color: 'var(--muted)' }}>{t.interest_amount ? fmt(t.interest_amount) : '—'}</div>
-                  <div style={{ color: 'var(--muted)' }}>{t.withdrawal_amount ? fmt(t.withdrawal_amount) : '—'}</div>
-                  <div style={{ color: 'var(--muted)' }}>{t.withholding_tax_amount ? fmt(t.withholding_tax_amount) : '—'}</div>
-                  <div style={{ color: 'var(--muted)' }}>{t.balance_amount ? fmt(t.balance_amount) : '—'}</div>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(t.id)}
-                    disabled={deleting === t.id}
-                    style={{ background: 'none', color: 'var(--muted)', padding: 4, opacity: deleting === t.id ? 0.45 : 1 }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
+                  )
+                })}
             </div>
-          </div>
-        )}
-      </Card>
+          )}
+        </>
+      ) : (
+        <>
+          <Card style={{ marginBottom: '1rem' }}>
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 1rem', lineHeight: 1.5 }}>
+              Track life insurance and endowment policies separately from day-to-day investment activity. Upload policy
+              documents to extract sum assured and bonus details.
+            </p>
+            <Btn onClick={() => setShowInsuranceAnalyzer(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Sparkles size={15} /> Analyze policy documents
+            </Btn>
+          </Card>
+
+          {insuranceLoading ? (
+            <Spinner />
+          ) : insurancePolicies.length === 0 ? (
+            <EmptyState icon="🛡️" message="No insurance policies yet. Upload a policy or bonus certificate to get started." />
+          ) : (
+            <>
+              <div className="metric-grid" style={{ marginBottom: '1.5rem' }}>
+                <MetricCard label="Policies" value={insurancePolicies.length} prefix="" />
+                <MetricCard label="Sum assured" value={insuranceSummary.totalSumAssured} />
+                <MetricCard label="Bonuses tracked" value={insuranceSummary.totalBonuses} color="var(--green)" />
+                <MetricCard label="Projected payout" value={insuranceSummary.totalProjected} color="var(--accent)" />
+              </div>
+              <Card>
+                <SectionTitle>Your policies</SectionTitle>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                  {insurancePolicies.map((p, i) => (
+                    <div
+                      key={p.id}
+                      style={{
+                        padding: '14px 0',
+                        borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>
+                        {p.insurer || 'Policy'} {p.policy_number ? `· ${p.policy_number}` : ''}
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+                        Sum assured: UGX {fmt(Number(p.sum_assured || 0))}
+                        {(p.insurance_bonuses || []).length > 0 && (
+                          <span>
+                            {' '}
+                            · {(p.insurance_bonuses || []).length} bonus record
+                            {(p.insurance_bonuses || []).length === 1 ? '' : 's'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </>
+          )}
+        </>
+      )}
     </div>
   )
 }
