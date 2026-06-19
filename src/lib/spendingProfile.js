@@ -58,6 +58,164 @@ const ARCHETYPES = {
   },
 }
 
+const ARCHETYPE_AVATARS = {
+  planner: '🧙‍♂️',
+  essentials: '🏠',
+  lifestyle: '🎉',
+  focused: '🎯',
+  frequent: '⚡',
+  stretched: '😅',
+  balanced: '⚖️',
+}
+
+const LEVEL_TITLES = [
+  'Coin Curious',
+  'Pocket Padawan',
+  'Budget Beginner',
+  'Money Minded',
+  'Cash Captain',
+  'Finance Fighter',
+  'Savings Sage',
+  'Wealth Wizard',
+  'Budget Legend',
+  'Money Master',
+]
+
+const XP_PER_LEVEL = 100
+
+/** Turn profile stats into levels, badges, and quests for the dashboard game card. */
+export function buildSpendingGamification(profile) {
+  if (!profile?.hasData) {
+    return {
+      hasData: false,
+      avatar: '🐣',
+      level: 1,
+      levelTitle: LEVEL_TITLES[0],
+      xp: 0,
+      xpInLevel: 0,
+      xpToNext: XP_PER_LEVEL,
+      stats: [],
+      badges: [],
+      quests: [{ text: 'Log your first expense to start your money journey!', reward: '+25 XP', done: false }],
+    }
+  }
+
+  const { archetype, confidence, metrics, tips, budgetAdherence } = profile
+  const avatar = ARCHETYPE_AVATARS[archetype.id] || '💰'
+
+  const budgetHp = metrics.adherenceScore ?? Math.round(confidence.score * 0.6)
+  const savingsPower = metrics.savingsRate != null ? Math.min(100, Math.max(0, metrics.savingsRate + 20)) : 40
+  const discipline = confidence.score
+
+  const rawXp =
+    confidence.score * 2 +
+    (metrics.adherenceScore ?? 0) +
+    Math.max(0, metrics.savingsRate ?? 0) +
+    metrics.monthCount * 8 +
+    Math.min(40, metrics.mappedShare / 2)
+
+  const level = Math.min(10, Math.max(1, Math.floor(rawXp / XP_PER_LEVEL) + 1))
+  const xpInLevel = Math.round(rawXp % XP_PER_LEVEL)
+  const xpToNext = XP_PER_LEVEL
+
+  const badges = [
+    {
+      id: 'budget_boss',
+      icon: '🛡️',
+      label: 'Budget Boss',
+      unlocked: (metrics.adherenceScore ?? 0) >= 75,
+      hint: '75%+ categories on track',
+    },
+    {
+      id: 'super_saver',
+      icon: '🌱',
+      label: 'Super Saver',
+      unlocked: (metrics.savingsRate ?? 0) >= 15,
+      hint: 'Retain 15%+ of salary',
+    },
+    {
+      id: 'data_hero',
+      icon: '📊',
+      label: 'Data Hero',
+      unlocked: metrics.monthCount >= 3 && confidence.level !== 'low',
+      hint: '3+ months of solid data',
+    },
+    {
+      id: 'category_captain',
+      icon: '🏷️',
+      label: 'Tag Master',
+      unlocked: metrics.mappedShare >= 90,
+      hint: '90%+ mapped to budget',
+    },
+    {
+      id: 'weekend_warrior',
+      icon: '🏖️',
+      label: 'Weekend Warrior',
+      unlocked: metrics.weekendShare >= 45,
+      hint: 'Weekend spender extraordinaire',
+    },
+    {
+      id: 'receipt_rookie',
+      icon: '🧾',
+      label: 'Receipt Ready',
+      unlocked: profile.topMerchants?.length >= 3,
+      hint: '3+ merchants tracked',
+    },
+  ]
+
+  const overBudget = budgetAdherence?.filter((r) => r.status === 'over').length ?? 0
+  const quests = []
+
+  if (tips[0]) {
+    quests.push({
+      text: tips[0].text.replace(/^Trim /, 'Quest: Trim ').replace(/^Rename /, 'Quest: Fix '),
+      reward: '+40 XP',
+      done: false,
+    })
+  }
+  if (overBudget > 0) {
+    quests.push({
+      text: `Side quest: get ${overBudget} over-budget categor${overBudget === 1 ? 'y' : 'ies'} back on track this month.`,
+      reward: '+30 XP',
+      done: false,
+    })
+  }
+  if ((metrics.savingsRate ?? 0) < 10 && metrics.savingsRate != null) {
+    quests.push({
+      text: 'Bonus quest: boost salary retained above 10%.',
+      reward: '+50 XP',
+      done: false,
+    })
+  }
+  if (!quests.length) {
+    quests.push({
+      text: 'Main quest complete! Keep logging to maintain your streak.',
+      reward: 'Streak 🔥',
+      done: true,
+    })
+  }
+
+  return {
+    hasData: true,
+    avatar,
+    archetypeLabel: archetype.label,
+    archetypeSummary: archetype.summary,
+    level,
+    levelTitle: LEVEL_TITLES[level - 1],
+    xp: Math.round(rawXp),
+    xpInLevel,
+    xpToNext,
+    stats: [
+      { key: 'budget', label: 'Budget HP', icon: '❤️', value: budgetHp, color: 'var(--teal)' },
+      { key: 'savings', label: 'Savings Power', icon: '⚡', value: savingsPower, color: 'var(--green)' },
+      { key: 'discipline', label: 'Discipline', icon: '🎯', value: discipline, color: 'var(--accent)' },
+    ],
+    badges,
+    quests: quests.slice(0, 2),
+    unlockedBadgeCount: badges.filter((b) => b.unlocked).length,
+  }
+}
+
 function computeConfidence({ expenseCount, monthCount, mappedShare, hasDescriptions }) {
   let score = 0
   if (expenseCount >= 60) score += 35
@@ -121,7 +279,7 @@ function buildActionTips({ categoryMeta, byCategory, monthCount, budgetAdherence
     })
   }
 
-  for (const row of budgetAdherence.filter((r) => r.status === 'under' && r.budgetAmount > 0 && r.monthlyAvg < row.budgetAmount * 0.5)) {
+  for (const row of budgetAdherence.filter((r) => r.status === 'under' && r.budgetAmount > 0 && r.monthlyAvg < r.budgetAmount * 0.5)) {
     tips.push({
       type: 'room',
       text: `${row.category} is well under budget — UGX ${fmtNum(row.headroom)}/mo headroom you could redirect to savings.`,
