@@ -64,14 +64,19 @@ export async function scanReceipt(file, { categories, paymentMethods }) {
 
   if (error) {
     const msg = String(error?.message || '')
-    if (/non-2xx|status code/i.test(msg)) {
+    const details = data?.error || data?.details
+    if (details) throw new Error(String(details).slice(0, 280))
+    if (/non-2xx|status code|failed to send/i.test(msg)) {
       throw new Error(
-        'Receipt scan failed. Deploy receipt-scanner and set ANTHROPIC_API_KEY in Supabase secrets.',
+        'Receipt scanner is not available. In your project folder run: supabase secrets set ANTHROPIC_API_KEY=your_key && supabase functions deploy receipt-scanner --no-verify-jwt',
       )
     }
     throw error
   }
-  if (data?.error) throw new Error(String(data.error))
+  if (data?.error) {
+    const extra = data.details ? ` ${String(data.details).slice(0, 200)}` : ''
+    throw new Error(String(data.error) + extra)
+  }
 
   return normalizeScannedExpense(data, { categories, paymentMethods })
 }
