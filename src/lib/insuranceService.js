@@ -29,8 +29,21 @@ async function fileToBase64(file) {
 }
 
 export async function analyzeInsuranceDocuments(files) {
+  const supported = files.filter((f) => {
+    const name = String(f.name || '').toLowerCase()
+    const type = String(f.type || '').toLowerCase()
+    return (
+      type === 'application/pdf' ||
+      type.startsWith('image/') ||
+      /\.(pdf|png|jpe?g|webp)$/i.test(name)
+    )
+  })
+  if (!supported.length) {
+    throw new Error('Upload PDF or image files (PNG, JPG, WEBP). CSV and TXT are not supported for AI analysis.')
+  }
+
   const payloadFiles = await Promise.all(
-    files.map(async (f) => ({
+    supported.map(async (f) => ({
       name: f.name,
       mimeType: f.type || 'application/octet-stream',
       contentBase64: await fileToBase64(f),
@@ -42,15 +55,18 @@ export async function analyzeInsuranceDocuments(files) {
   })
   if (error) {
     const msg = String(error?.message || '')
-    if (/non-2xx|status code/i.test(msg)) {
+    const details = data?.error || data?.details
+    if (details) throw new Error(String(details).slice(0, 320))
+    if (/non-2xx|status code|failed to send/i.test(msg)) {
       throw new Error(
-        'Analyzer request failed. Ensure insurance-analyzer is deployed, JWT is disabled for this function, and ANTHROPIC_API_KEY is set in Supabase secrets.',
+        'Insurance analyzer unavailable. Run: supabase secrets set ANTHROPIC_API_KEY=your_key && supabase functions deploy insurance-analyzer --no-verify-jwt',
       )
     }
     throw error
   }
   if (data?.error) {
-    throw new Error(String(data.error))
+    const extra = data.details ? ` ${String(data.details).slice(0, 200)}` : ''
+    throw new Error(String(data.error) + extra)
   }
   return data
 }

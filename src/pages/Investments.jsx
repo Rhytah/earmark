@@ -348,7 +348,7 @@ function InsuranceAnalyzerModal({ onClose, onSaved }) {
         <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 1rem', lineHeight: 1.5 }}>
           Upload policy statements or bonus certificates. AI extracts sum assured, bonuses, and policy numbers.
         </p>
-        <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt" multiple onChange={(e) => setFiles(Array.from(e.target.files || []))} />
+        <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files || []))} />
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>{files.length} file(s) selected</div>
         {result?.policies?.length > 0 && (
           <div

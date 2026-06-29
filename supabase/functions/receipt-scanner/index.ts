@@ -85,7 +85,7 @@ serve(async (req) => {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-6',
         max_tokens: 800,
         temperature: 0.1,
         messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, mediaBlock] }],
