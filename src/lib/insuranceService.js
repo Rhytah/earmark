@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { edgeFunctionErrorMessage } from './edgeFunctionErrors'
 
 export async function uploadInsuranceDocs(files) {
   const {
@@ -54,15 +55,13 @@ export async function analyzeInsuranceDocuments(files) {
     body: { files: payloadFiles },
   })
   if (error) {
-    const msg = String(error?.message || '')
-    const details = data?.error || data?.details
-    if (details) throw new Error(String(details).slice(0, 320))
-    if (/non-2xx|status code|failed to send/i.test(msg)) {
-      throw new Error(
-        'Insurance analyzer unavailable. Run: supabase secrets set ANTHROPIC_API_KEY=your_key && supabase functions deploy insurance-analyzer --no-verify-jwt',
-      )
-    }
-    throw error
+    throw new Error(
+      await edgeFunctionErrorMessage(
+        error,
+        data,
+        'Insurance analyzer unavailable. Set a valid Anthropic key: supabase secrets set ANTHROPIC_API_KEY=your_key',
+      ),
+    )
   }
   if (data?.error) {
     const extra = data.details ? ` ${String(data.details).slice(0, 200)}` : ''

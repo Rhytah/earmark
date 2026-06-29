@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { edgeFunctionErrorMessage } from './edgeFunctionErrors'
 import { parseExpenseDate } from './csvExpenses'
 
 async function fileToBase64(file) {
@@ -63,15 +64,13 @@ export async function scanReceipt(file, { categories, paymentMethods }) {
   })
 
   if (error) {
-    const msg = String(error?.message || '')
-    const details = data?.error || data?.details
-    if (details) throw new Error(String(details).slice(0, 280))
-    if (/non-2xx|status code|failed to send/i.test(msg)) {
-      throw new Error(
-        'Receipt scanner is not available. In your project folder run: supabase secrets set ANTHROPIC_API_KEY=your_key && supabase functions deploy receipt-scanner --no-verify-jwt',
-      )
-    }
-    throw error
+    throw new Error(
+      await edgeFunctionErrorMessage(
+        error,
+        data,
+        'Receipt scanner unavailable. Set a valid Anthropic key: supabase secrets set ANTHROPIC_API_KEY=your_key',
+      ),
+    )
   }
   if (data?.error) {
     const extra = data.details ? ` ${String(data.details).slice(0, 200)}` : ''
