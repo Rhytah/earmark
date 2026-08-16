@@ -114,7 +114,7 @@ export default function ScanReceiptModal({ categories, paymentMethods, onAdd, on
         {!form ? (
           <>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
-              Photograph or upload a receipt. We&apos;ll read the date, amount, and merchant, then let you confirm
+              Photograph or upload a receipt PDF. Text PDFs are read locally with readany; photos use AI when available. Confirm
               before saving.
             </p>
             <div className="receipt-scan-actions">

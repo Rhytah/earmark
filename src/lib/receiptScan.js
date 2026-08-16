@@ -1,6 +1,8 @@
 import { supabase } from './supabase'
 import { edgeFunctionErrorMessage } from './edgeFunctionErrors'
 import { parseExpenseDate } from './csvExpenses'
+import { readDocument } from './readanyClient'
+import { expenseFromDocumentText } from './receiptFromText'
 
 async function fileToBase64(file) {
   const buf = await file.arrayBuffer()
@@ -28,7 +30,7 @@ function matchFromList(raw, options, fallback) {
   return fallback
 }
 
-/** Normalize AI output into an expense form shape. */
+/** Normalize AI / local output into an expense form shape. */
 export function normalizeScannedExpense(raw, { categories, paymentMethods }) {
   const expense = raw?.expense ?? raw ?? {}
   const today = new Date().toISOString().slice(0, 10)
@@ -50,9 +52,13 @@ export function normalizeScannedExpense(raw, { categories, paymentMethods }) {
   }
 }
 
-export async function scanReceipt(file, { categories, paymentMethods }) {
-  if (!file) throw new Error('Choose a receipt photo or PDF first.')
+function isImageFile(file) {
+  const name = String(file?.name || '').toLowerCase()
+  const type = String(file?.type || '').toLowerCase()
+  return type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(name)
+}
 
+async function scanWithClaude(file, { categories, paymentMethods }) {
   const payload = {
     name: file.name,
     mimeType: file.type || (file.name?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
@@ -78,4 +84,48 @@ export async function scanReceipt(file, { categories, paymentMethods }) {
   }
 
   return normalizeScannedExpense(data, { categories, paymentMethods })
+}
+
+/**
+ * Scan a receipt locally with readany when possible.
+ * Photos / scanned pages have no text layer — those fall back to Claude vision.
+ */
+export async function scanReceipt(file, { categories, paymentMethods }) {
+  if (!file) throw new Error('Choose a receipt photo or PDF first.')
+
+  // Photos never have a text layer — go straight to Claude.
+  if (isImageFile(file)) {
+    try {
+      return await scanWithClaude(file, { categories, paymentMethods })
+    } catch (e) {
+      throw new Error(
+        `${e.message || 'Could not read photo.'} Tip: export a text PDF from your bank/merchant for offline reading with readany.`,
+      )
+    }
+  }
+
+  try {
+    const doc = await readDocument(file)
+    if (doc.markdown?.trim() && !doc.needsOcr) {
+      const parsed = expenseFromDocumentText(doc.markdown, { categories, paymentMethods })
+      if (doc.unresolvedPages?.length) {
+        parsed.notes = `${parsed.notes || ''} Some pages needed OCR and were skipped.`.trim()
+        parsed.confidence = 'low'
+      }
+      return normalizeScannedExpense(parsed, { categories, paymentMethods })
+    }
+
+    // Scanned PDF / no text — Claude fallback
+    return await scanWithClaude(file, { categories, paymentMethods })
+  } catch (e) {
+    // If readany itself fails, still try Claude for PDFs
+    if (/ReadError|unsupported|too_large|password/i.test(String(e?.name || e?.kind || e?.message || ''))) {
+      try {
+        return await scanWithClaude(file, { categories, paymentMethods })
+      } catch (claudeErr) {
+        throw new Error(claudeErr.message || e.message || 'Could not read receipt.')
+      }
+    }
+    throw e
+  }
 }
