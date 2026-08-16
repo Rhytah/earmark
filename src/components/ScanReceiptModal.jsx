@@ -1,11 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera, Paperclip, X } from 'lucide-react'
+import { Camera, FileUp, Paperclip, X } from 'lucide-react'
 import { scanReceipt } from '../lib/receiptScan'
 import { attachReceiptToExpense, uploadExpenseReceipt } from '../lib/expenseReceipts'
 import { Btn, Card } from './UI'
 
+const IMAGE_ACCEPT = 'image/*,image/jpeg,image/png,image/webp,image/heic'
+const FILE_ACCEPT = 'image/*,.pdf,application/pdf,image/jpeg,image/png,image/webp'
+
+function isAllowedReceiptFile(file) {
+  if (!file) return false
+  const name = String(file.name || '').toLowerCase()
+  const type = String(file.type || '').toLowerCase()
+  return (
+    type.startsWith('image/') ||
+    type === 'application/pdf' ||
+    /\.(png|jpe?g|webp|gif|heic|pdf)$/i.test(name)
+  )
+}
+
 export default function ScanReceiptModal({ categories, paymentMethods, onAdd, onClose }) {
-  const inputRef = useRef(null)
+  const cameraInputRef = useRef(null)
+  const fileInputRef = useRef(null)
   const [file, setFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [scanning, setScanning] = useState(false)
@@ -27,6 +42,10 @@ export default function ScanReceiptModal({ categories, paymentMethods, onAdd, on
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }))
 
   const handleFile = (next) => {
+    if (next && !isAllowedReceiptFile(next)) {
+      setError('Upload a photo (JPG, PNG, WEBP) or a PDF receipt.')
+      return
+    }
     setFile(next)
     setForm(null)
     setScanNotes('')
@@ -35,7 +54,7 @@ export default function ScanReceiptModal({ categories, paymentMethods, onAdd, on
 
   const handleScan = async () => {
     if (!file) {
-      setError('Take a photo or choose a receipt image first.')
+      setError('Take a photo or upload a receipt photo/PDF first.')
       return
     }
     setScanning(true)
@@ -114,26 +133,48 @@ export default function ScanReceiptModal({ categories, paymentMethods, onAdd, on
         {!form ? (
           <>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12, lineHeight: 1.5 }}>
-              Photograph or upload a receipt PDF. Text PDFs are read locally with readany; photos use AI when available. Confirm
-              before saving.
+              Take a photo or upload a receipt photo/PDF. Text PDFs are read locally with readany; photos use AI when
+              available. Confirm before saving.
             </p>
             <div className="receipt-scan-actions">
               <button
                 type="button"
                 className="receipt-scan-btn"
-                onClick={() => inputRef.current?.click()}
+                onClick={() => cameraInputRef.current?.click()}
                 disabled={scanning}
               >
                 <Camera size={18} />
-                {file ? 'Change photo' : 'Take photo / upload'}
+                Take photo
+              </button>
+              <button
+                type="button"
+                className="receipt-scan-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={scanning}
+              >
+                <FileUp size={18} />
+                Upload photo or PDF
               </button>
               <input
-                ref={inputRef}
+                ref={cameraInputRef}
                 type="file"
-                accept="image/*,.pdf,application/pdf"
+                accept={IMAGE_ACCEPT}
                 capture="environment"
                 className="receipt-scan-input"
-                onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  handleFile(e.target.files?.[0] ?? null)
+                  e.target.value = ''
+                }}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={FILE_ACCEPT}
+                className="receipt-scan-input"
+                onChange={(e) => {
+                  handleFile(e.target.files?.[0] ?? null)
+                  e.target.value = ''
+                }}
               />
             </div>
             {file && (
