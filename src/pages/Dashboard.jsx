@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { Camera, PieChart, Plus, Wallet } from 'lucide-react'
 import { useAppSettings } from '../context/useAppSettings'
 import { useExpenses, useIncome, useInvestments, useTrackerLogsBatch, useExpensesHistory } from '../lib/hooks'
 import { budgetLineAmount, fmt, getCurrentMonth } from '../lib/constants'
@@ -10,7 +11,7 @@ import { buildSpendingProfile } from '../lib/spendingProfile'
 import { useSpendingGamification } from '../lib/useSpendingGamification'
 import SpendingProfileGame from '../components/SpendingProfileGame'
 import TrackReminderBanner from '../components/TrackReminderBanner'
-import { Card, MetricCard, ProgressBar, SectionTitle, Badge, MonthPicker, Spinner } from '../components/UI'
+import { Card, ProgressBar, SectionTitle, Badge, MonthPicker, Spinner } from '../components/UI'
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -135,33 +136,64 @@ export default function Dashboard() {
 
       <TrackReminderBanner />
 
-      <div className="metric-grid">
-        <MetricCard
-          label="Received (logged)"
-          value={income.logged}
-          sub={income.hasLogged ? 'This month' : 'Log inflows on Income tab'}
-          color={income.hasLogged ? 'var(--green)' : 'var(--muted)'}
-        />
-        <MetricCard label="Expected (settings)" value={income.total} sub={`Salary ${fmt(income.salary)}`} />
-        <MetricCard label="Primary salary" value={income.salary} />
-        {income.extraTotal > 0 && (
-          <MetricCard
-            label="Extra (settings)"
-            value={income.extraTotal}
-            sub={`${income.extraSources.length} source${income.extraSources.length === 1 ? '' : 's'}`}
-            color="var(--green)"
-          />
-        )}
-        <MetricCard label="Total spent" value={totalSpend} color={totalSpend > monthlyIncome * 0.8 ? 'var(--red)' : 'var(--text)'} />
-        <MetricCard label="Remaining" value={remaining} color={remaining < 0 ? 'var(--red)' : 'var(--green)'} />
-        <MetricCard label="Invested (month)" value={investedThisMonth} color="var(--accent)" />
-        <MetricCard
-          label="% income allocated"
-          value={monthlyIncome > 0 ? Math.round((incomeUsed / monthlyIncome) * 100) : 0}
-          prefix=""
-          sub={`of UGX ${fmt(monthlyIncome)}`}
-          color={incomeUsed > monthlyIncome ? 'var(--red)' : 'var(--text)'}
-        />
+      <Card className="dashboard-hero">
+        <div className="dashboard-hero-top">
+          <div>
+            <div className="dashboard-hero-label">Remaining this month</div>
+            <div
+              className="dashboard-hero-amount"
+              style={{ color: remaining < 0 ? 'var(--red)' : 'var(--green)' }}
+            >
+              UGX {fmt(remaining)}
+            </div>
+            <div className="dashboard-hero-meta">
+              {remaining < 0
+                ? `Over budget by UGX ${fmt(Math.abs(remaining))}`
+                : `${monthlyIncome > 0 ? Math.round((incomeUsed / monthlyIncome) * 100) : 0}% of income used`}
+            </div>
+          </div>
+          <div className="dashboard-hero-stats">
+            <div className="dashboard-hero-stat">
+              <span>Income</span>
+              <strong>UGX {fmt(income.hasLogged ? income.logged : income.total)}</strong>
+              <small>{income.hasLogged ? 'logged' : 'expected'}</small>
+            </div>
+            <div className="dashboard-hero-stat">
+              <span>Spent</span>
+              <strong style={{ color: totalSpend > monthlyIncome * 0.8 ? 'var(--red)' : undefined }}>
+                UGX {fmt(totalSpend)}
+              </strong>
+            </div>
+            <div className="dashboard-hero-stat">
+              <span>Invested</span>
+              <strong style={{ color: 'var(--accent)' }}>UGX {fmt(investedThisMonth)}</strong>
+            </div>
+          </div>
+        </div>
+        <ProgressBar value={incomeUsed} max={monthlyIncome || 1} color="var(--accent)" height={8} />
+        <div className="dashboard-hero-foot">
+          <span>UGX {fmt(incomeUsed)} used</span>
+          <span>UGX {fmt(monthlyIncome)} budget</span>
+        </div>
+      </Card>
+
+      <div className="dashboard-quick-actions">
+        <Link to="/expenses" className="dashboard-quick-action">
+          <Plus size={18} />
+          <span>Add expense</span>
+        </Link>
+        <Link to="/income" className="dashboard-quick-action">
+          <Wallet size={18} />
+          <span>Log income</span>
+        </Link>
+        <Link to="/reports" className="dashboard-quick-action">
+          <PieChart size={18} />
+          <span>Reports</span>
+        </Link>
+        <Link to="/expenses?scan=1" className="dashboard-quick-action">
+          <Camera size={18} />
+          <span>Scan receipt</span>
+        </Link>
       </div>
 
       {!loading && expenses.length === 0 && (
@@ -251,25 +283,6 @@ export default function Dashboard() {
           )}
         </Card>
       )}
-
-      {/* Income progress bar */}
-      <Card style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
-          <span style={{ color: 'var(--muted)' }}>Income used</span>
-          <span style={{ fontWeight: 600 }}>{fmt(incomeUsed)} / {fmt(monthlyIncome)}</span>
-        </div>
-        <ProgressBar value={incomeUsed} max={monthlyIncome} color="var(--accent)" height={10} />
-        {income.extraSources.length > 0 && (
-          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[{ label: 'Salary', amount: income.salary }, ...income.extraSources].map((source) => (
-              <div key={source.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)' }}>
-                <span>{source.label}</span>
-                <span>UGX {fmt(source.amount)}/mo</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
 
       {/* Chart */}
       <Card style={{ marginBottom: '1.5rem' }}>

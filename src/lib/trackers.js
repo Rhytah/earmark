@@ -31,7 +31,7 @@ export const TRACKER_PRESETS = [
     label: 'Gym',
     icon: 'dumbbell',
     budget_category: 'Gym',
-    unit_cost: 15_000,
+    unit_cost: 20_000,
     target_per_week: 3,
     unit_label: 'session',
   },
@@ -67,13 +67,16 @@ export function slugifyTrackerId(label, existingIds = []) {
 
 function normalizeOne(raw, index) {
   const label = String(raw?.label || `Tracker ${index + 1}`).trim()
+  let unitCost = Math.max(0, Number(raw?.unit_cost) || 0)
+  const id = String(raw?.id || slugifyTrackerId(label)).trim() || `tracker-${index}`
+  if (id === 'gym' && unitCost === 15_000) unitCost = 20_000
   return {
-    id: String(raw?.id || slugifyTrackerId(label)).trim() || `tracker-${index}`,
+    id,
     label,
     icon: TRACKER_ICON_OPTIONS.some((o) => o.id === raw?.icon) ? raw.icon : 'activity',
     enabled: raw?.enabled !== false,
     budget_category: String(raw?.budget_category || '').trim(),
-    unit_cost: Math.max(0, Number(raw?.unit_cost) || 0),
+    unit_cost: unitCost,
     target_per_week: Math.max(1, Number(raw?.target_per_week) || 1),
     unit_label: String(raw?.unit_label || 'session').trim() || 'session',
   }
@@ -151,6 +154,34 @@ export function trackerExpenses(tracker, expenses) {
   if (!cat) return []
   const catLower = cat.toLowerCase()
   return (expenses || []).filter((e) => String(e.category || '').trim().toLowerCase() === catLower)
+}
+
+/** Description used when a tracker log creates an expense row. */
+export function trackerExpenseDescription(tracker) {
+  const unitLabel = tracker?.unit_label || 'session'
+  return `${tracker?.label || 'Tracker'} ${unitLabel}`
+}
+
+/** True when an expense row was (likely) created from a tracker log. */
+export function isTrackerGeneratedExpense(expense, tracker) {
+  if (!expense || !tracker?.budget_category) return false
+  const cat = String(tracker.budget_category).trim().toLowerCase()
+  if (String(expense.category || '').trim().toLowerCase() !== cat) return false
+  const unitCost = Number(tracker.unit_cost) || 0
+  if (unitCost > 0 && Number(expense.amount) !== unitCost) return false
+  return expense.description === trackerExpenseDescription(tracker)
+}
+
+export function buildTrackerExpense(tracker, date, paymentMethod = 'Card') {
+  const unitCost = Number(tracker?.unit_cost) || 0
+  if (unitCost <= 0 || !tracker?.budget_category) return null
+  return {
+    date,
+    category: tracker.budget_category,
+    description: trackerExpenseDescription(tracker),
+    amount: unitCost,
+    payment_method: paymentMethod,
+  }
 }
 
 /**

@@ -1,6 +1,6 @@
 /** Default app configuration (used until DB row exists and as fallback). */
 export const DEFAULT_APP_SETTINGS = {
-  app_title: 'My Budget',
+  app_title: 'Earmark',
   salary: 3_000_000,
   extra_income: [],
   budget: [

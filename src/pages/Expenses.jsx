@@ -1,4 +1,5 @@
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Trash2, Plus, X, FileSpreadsheet, Paperclip, Receipt, Camera } from 'lucide-react'
 import { useAppSettings } from '../context/useAppSettings'
 import { useExpenses } from '../lib/hooks'
@@ -406,10 +407,18 @@ export default function Expenses() {
   const paymentMethods = settings.payment_methods?.length ? settings.payment_methods : ['Card']
   const [month, setMonth] = useState(getCurrentMonth())
   const { expenses, loading, addExpense, addExpensesBulk, deleteExpense, refetch } = useExpenses(month)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [showForm, setShowForm] = useState(false)
   const [showScan, setShowScan] = useState(false)
   const [showCsv, setShowCsv] = useState(false)
   const [deleting, setDeleting] = useState(null)
+
+  useEffect(() => {
+    if (searchParams.get('scan') === '1') {
+      setShowScan(true)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const grouped = expenses.reduce((acc, e) => {
     const d = e.date

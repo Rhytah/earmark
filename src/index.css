@@ -526,6 +526,119 @@ body {
   }
 }
 
+/* Dashboard hero + quick actions */
+.dashboard-hero {
+  margin-bottom: 1.25rem;
+  background: linear-gradient(145deg, var(--surface2) 0%, var(--surface) 100%);
+}
+
+.dashboard-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.dashboard-hero-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.dashboard-hero-amount {
+  font-size: clamp(1.75rem, 5.5vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.dashboard-hero-meta {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+
+.dashboard-hero-stats {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 5.5rem;
+}
+
+.dashboard-hero-stat > span:first-child {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.dashboard-hero-stat strong {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-hero-stat small {
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.dashboard-hero-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
+
+.dashboard-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.85rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: border-color 0.15s var(--ease), transform 0.15s var(--ease), background 0.15s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dashboard-quick-action:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.dashboard-quick-action svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
 /* Chart: explicit height so ResponsiveContainer can measure */
 .chart-wrap {
   width: 100%;
@@ -544,6 +657,53 @@ body {
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: clamp(4px, 1.5vw, 8px);
   text-align: center;
+}
+
+.tracker-calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  font-family: inherit;
+  padding: 0;
+}
+
+.tracker-calendar-day--logged {
+  font-weight: 700;
+  background: rgba(61, 190, 122, 0.15);
+  color: var(--green);
+}
+
+.tracker-calendar-day--today {
+  background: rgba(91, 140, 255, 0.1);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tracker-calendar-day--clickable {
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.tracker-calendar-day--clickable:hover:not(:disabled) {
+  background: rgba(91, 140, 255, 0.18);
+  border-color: rgba(91, 140, 255, 0.35);
+  color: var(--accent);
+}
+
+.tracker-calendar-day--clickable:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.tracker-calendar-day--busy {
+  opacity: 0.55;
 }
 
 .tracker-card-grid {

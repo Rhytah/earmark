@@ -4,7 +4,7 @@ import { CheckCircle, Trash2, ChevronLeft } from 'lucide-react'
 import { useAppSettings } from '../context/useAppSettings'
 import { useTrackerLogs, useExpenses } from '../lib/hooks'
 import { budgetLineAmount, fmt, getCurrentMonth } from '../lib/constants'
-import { findTracker, computeTrackerSummary, mergeTrackerActivity } from '../lib/trackers'
+import { findTracker, computeTrackerSummary, mergeTrackerActivity, buildTrackerExpense, isTrackerGeneratedExpense, trackerExpenses } from '../lib/trackers'
 import { Card, MetricCard, ProgressBar, SectionTitle, Btn, Spinner, MonthPicker } from '../components/UI'
 import { format, parseISO, getDaysInMonth, getDay } from 'date-fns'
 
@@ -21,9 +21,10 @@ export default function TrackerDetail() {
 
   const [month, setMonth] = useState(getCurrentMonth())
   const { logs, loading, logEntry, removeLog } = useTrackerLogs(trackerId, month)
-  const { expenses, loading: expensesLoading } = useExpenses(month)
-  const [logging, setLogging] = useState(false)
+  const { expenses, loading: expensesLoading, addExpense, deleteExpense } = useExpenses(month)
+  const [loggingDate, setLoggingDate] = useState(null)
   const [deleting, setDeleting] = useState(null)
+  const paymentMethods = settings.payment_methods?.length ? settings.payment_methods : ['Card']
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -55,16 +56,38 @@ export default function TrackerDetail() {
     return <Navigate to="/trackers" replace />
   }
 
-  const handleLog = async () => {
-    if (stats.logDates.has(today)) return
-    setLogging(true)
-    await logEntry(today)
-    setLogging(false)
+  const handleLog = async (dateStr) => {
+    if (!dateStr || stats.logDates.has(dateStr) || dateStr > today) return
+    setLoggingDate(dateStr)
+    const { error: logError } = await logEntry(dateStr)
+    if (logError) {
+      setLoggingDate(null)
+      return
+    }
+
+    const expensePayload = buildTrackerExpense(tracker, dateStr, paymentMethods[0])
+    if (expensePayload) {
+      const existingOnDate = trackerExpenses(tracker, expenses).filter((e) => e.date === dateStr)
+      if (existingOnDate.length === 0) {
+        await addExpense(expensePayload)
+      }
+    }
+    setLoggingDate(null)
   }
 
-  const handleRemove = async (id) => {
-    setDeleting(id)
-    await removeLog(id)
+  const handleRemove = async (entry) => {
+    setDeleting(entry.date)
+    if (entry.log) {
+      await removeLog(entry.log.id)
+    }
+    if (entry.source === 'log') {
+      const linkedExpense = expenses.find(
+        (e) => e.date === entry.date && isTrackerGeneratedExpense(e, tracker),
+      )
+      if (linkedExpense) {
+        await deleteExpense(linkedExpense.id)
+      }
+    }
     setDeleting(null)
   }
 
@@ -103,7 +126,12 @@ export default function TrackerDetail() {
               <> · linked to «{tracker.budget_category}» expenses</>
             )}
           </p>
-          {tracker.budget_category && (
+          {tracker.budget_category && unitCost > 0 && (
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+              Logging a {unitLabel} adds an expense in «{tracker.budget_category}» for UGX {fmt(unitCost)}.
+            </p>
+          )}
+          {tracker.budget_category && unitCost <= 0 && (
             <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
               Expenses in «{tracker.budget_category}» count automatically — manual logs fill gaps.
             </p>
@@ -111,20 +139,19 @@ export default function TrackerDetail() {
         </div>
         <div className="page-header-actions">
           <MonthPicker value={month} onChange={setMonth} />
-          {isCurrentMonth && (
+          {isCurrentMonth && !todayLogged && (
             <Btn
-              onClick={handleLog}
-              disabled={logging || todayLogged}
-              variant={todayLogged ? 'ghost' : 'success'}
+              onClick={() => void handleLog(today)}
+              disabled={Boolean(loggingDate)}
+              variant="success"
               style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
             >
-              {todayLogged ? (
-                <>
-                  <CheckCircle size={15} /> Logged today
-                </>
-              ) : (
-                <>{logging ? 'Logging…' : `+ Log ${unitLabel}`}</>
-              )}
+              {loggingDate === today ? 'Logging…' : `+ Log ${unitLabel}`}
+            </Btn>
+          )}
+          {isCurrentMonth && todayLogged && (
+            <Btn variant="ghost" disabled style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+              <CheckCircle size={15} /> Logged today
             </Btn>
           )}
         </div>
@@ -164,6 +191,9 @@ export default function TrackerDetail() {
 
       <Card style={{ marginBottom: '1.5rem' }}>
         <SectionTitle>Calendar</SectionTitle>
+        <p style={{ fontSize: 12, color: 'var(--muted)', margin: '-0.35rem 0 0.85rem' }}>
+          Tap a day to log a past or current {unitLabel}. Future dates cannot be logged.
+        </p>
         <div className="tracker-calendar-grid">
           {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
             <div key={d} style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, paddingBottom: 4 }}>
@@ -172,36 +202,45 @@ export default function TrackerDetail() {
           ))}
           {loading
             ? null
-            : calDays.map((day, i) => (
-                <div
-                  key={i}
-                  style={{
-                    aspectRatio: '1',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 6,
-                    fontSize: 12,
-                    fontWeight: day?.logged ? 700 : 400,
-                    background: day?.logged
-                      ? 'rgba(61,190,122,0.15)'
-                      : day?.dateStr === today
-                        ? 'rgba(91,140,255,0.1)'
-                        : 'transparent',
-                    color: day?.logged
-                      ? 'var(--green)'
-                      : day?.dateStr === today
-                        ? 'var(--accent)'
-                        : day
-                          ? 'var(--text)'
-                          : 'transparent',
-                    border:
-                      day?.dateStr === today ? '1px solid var(--accent)' : '1px solid transparent',
-                  }}
-                >
-                  {day ? (day.logged ? <span title={`Logged ${day.dateStr}`}>✓ {day.d}</span> : day.d) : ''}
-                </div>
-              ))}
+            : calDays.map((day, i) => {
+                if (!day) {
+                  return <div key={i} aria-hidden />
+                }
+                const isFuture = day.dateStr > today
+                const canLog = !day.logged && !isFuture
+                const isLogging = loggingDate === day.dateStr
+                const dayClasses = [
+                  'tracker-calendar-day',
+                  day.logged ? 'tracker-calendar-day--logged' : '',
+                  day.dateStr === today ? 'tracker-calendar-day--today' : '',
+                  canLog ? 'tracker-calendar-day--clickable' : '',
+                  isLogging ? 'tracker-calendar-day--busy' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')
+
+                if (canLog) {
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      className={dayClasses}
+                      onClick={() => void handleLog(day.dateStr)}
+                      disabled={Boolean(loggingDate)}
+                      title={`Log ${unitLabel} on ${day.dateStr}`}
+                      aria-label={`Log ${unitLabel} on ${format(parseISO(day.dateStr), 'MMMM d')}`}
+                    >
+                      {isLogging ? '…' : day.d}
+                    </button>
+                  )
+                }
+
+                return (
+                  <div key={i} className={dayClasses} title={day.logged ? `Logged ${day.dateStr}` : undefined}>
+                    {day.logged ? <span>✓ {day.d}</span> : day.d}
+                  </div>
+                )
+              })}
         </div>
       </Card>
 
@@ -242,18 +281,19 @@ export default function TrackerDetail() {
                   {entry.amount > 0 && (
                     <span style={{ fontSize: 13, fontWeight: 600 }}>UGX {fmt(entry.amount)}</span>
                   )}
-                  {entry.source === 'expense' || entry.source === 'both' ? (
+                  {entry.source === 'expense' ? (
                     <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>Expense</span>
                   ) : (
                     <button
-                      onClick={() => handleRemove(entry.log.id)}
-                      disabled={deleting === entry.log.id}
+                      onClick={() => void handleRemove(entry)}
+                      disabled={deleting === entry.date}
                       style={{
                         background: 'none',
                         color: 'var(--muted)',
                         padding: 4,
-                        opacity: deleting === entry.log.id ? 0.4 : 1,
+                        opacity: deleting === entry.date ? 0.4 : 1,
                       }}
+                      title={entry.source === 'both' ? 'Remove manual log' : 'Remove log and expense'}
                     >
                       <Trash2 size={14} />
                     </button>

@@ -95,9 +95,10 @@ export function useTrackerLogs(trackerId, month = getCurrentMonth()) {
   }, [fetch])
 
   const logEntry = async (date) => {
+    const logMonth = date.slice(0, 7)
     const { data, error } = await supabase
       .from('gym_sessions')
-      .insert([{ date, month, tracker_id: trackerId }])
+      .insert([{ date, month: logMonth, tracker_id: trackerId }])
       .select()
     if (!error) setLogs((prev) => [data[0], ...prev])
     return { data, error }
