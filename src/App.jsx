@@ -33,7 +33,7 @@ function GoogleSheetSyncRunner() {
 }
 
 function AppRoutes({ theme, onToggleTheme }) {
-  const { user, loading } = useAuth()
+  const { user, loading, passwordRecovery } = useAuth()
 
   if (loading) {
     return (
@@ -43,7 +43,7 @@ function AppRoutes({ theme, onToggleTheme }) {
     )
   }
 
-  if (!user) {
+  if (!user || passwordRecovery) {
     return <Login />
   }
 

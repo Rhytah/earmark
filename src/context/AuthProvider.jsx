@@ -23,6 +23,7 @@ async function completeAuthRedirect() {
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [passwordRecovery, setPasswordRecovery] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -39,7 +40,9 @@ export function AuthProvider({ children }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true)
+      if (event === 'SIGNED_OUT') setPasswordRecovery(false)
       setSession(nextSession)
       setLoading(false)
     })
@@ -66,6 +69,19 @@ export function AuthProvider({ children }) {
     return { data, error }
   }, [])
 
+  const resetPassword = useCallback(async (email) => {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getAppUrl(),
+    })
+    return { data, error }
+  }, [])
+
+  const updatePassword = useCallback(async (password) => {
+    const { data, error } = await supabase.auth.updateUser({ password })
+    if (!error) setPasswordRecovery(false)
+    return { data, error }
+  }, [])
+
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut()
     return { error }
@@ -76,11 +92,14 @@ export function AuthProvider({ children }) {
       session,
       user: session?.user ?? null,
       loading,
+      passwordRecovery,
       signIn,
       signUp,
       signOut,
+      resetPassword,
+      updatePassword,
     }),
-    [session, loading, signIn, signUp, signOut],
+    [session, loading, passwordRecovery, signIn, signUp, signOut, resetPassword, updatePassword],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
